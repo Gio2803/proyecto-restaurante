@@ -14,13 +14,13 @@ if (!$conexion) {
 if ($_POST['funcion'] == 'iniciar') {
     $usuario = trim($_POST['usuario']);
     $contrasena = trim($_POST['contrasena']);
-    
+
     // Validaciones básicas
     if (empty($usuario) || empty($contrasena)) {
         echo "error";
         exit();
     }
-    
+
     try {
         // Consulta usando la tabla usuarios con PostgreSQL
         $sql = "SELECT * FROM usuarios WHERE usuario = :usuario AND contrasena = :contrasena AND fechabaja IS NULL";
@@ -28,14 +28,22 @@ if ($_POST['funcion'] == 'iniciar') {
         $stmt->bindParam(':usuario', $usuario);
         $stmt->bindParam(':contrasena', $contrasena);
         $stmt->execute();
-        
+
         if ($stmt->rowCount() > 0) {
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
-            $_SESSION['SISTEMA']['id_usuario'] = $row['id_usuario'];
-            $_SESSION['SISTEMA']['rol'] = $row['id_rol'];
-            $_SESSION['SISTEMA']['usuario'] = $row['usuario'];
-            $_SESSION['SISTEMA']['nombre'] = $row['nombre'];
-            $_SESSION['SISTEMA']['telefono'] = $row['telefono'];
+
+            // Establecer ambas formas de sesión para compatibilidad
+            $_SESSION['SISTEMA'] = [
+                'id_usuario' => $row['id_usuario'],
+                'rol' => $row['id_rol'],
+                'usuario' => $row['usuario'],
+                'nombre' => $row['nombre'],
+                'telefono' => $row['telefono']
+            ];
+
+            // También establecer la variable individual que busca check_session.php
+            $_SESSION['id_usuario'] = $row['id_usuario'];
+
             echo "success";
         } else {
             echo "error";

@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         $tabla = "";
         while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
             $badge_estado = "";
-            switch($row['estado']) {
+            switch ($row['estado']) {
                 case 'disponible':
                     $badge_estado = "<span class='badge bg-success'>Disponible</span>";
                     break;
@@ -23,7 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
                 default:
                     $badge_estado = "<span class='badge bg-secondary'>{$row['estado']}</span>";
             }
-            
+
             $tabla .= "<tr>
                 <td>{$row['numero_mesa']}</td>
                 <td>{$row['capacidad']}</td>
@@ -39,35 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         exit;
     }
 
-    // ================= TABLA MESAS ELIMINADAS =================
-    if ($funcion == "TablaEliminadas") {
-        // CORRECCIÓN: Cambié NOT NULL por IS NOT NULL
-        $stmt = $conexion->query("SELECT * FROM mesas WHERE fechabaja IS NOT NULL ORDER BY numero_mesa");
-        $tabla = "";
-        
-        if ($stmt->rowCount() == 0) {
-            $tabla = "<tr><td colspan='6' class='text-center'>No hay mesas eliminadas</td></tr>";
-        } else {
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                $fecha_eliminacion = date('d/m/Y H:i', strtotime($row['fechabaja']));
-                
-                $tabla .= "<tr>
-                    <td>{$row['numero_mesa']}</td>
-                    <td>{$row['capacidad']}</td>
-                    <td><span class='badge bg-secondary'>{$row['estado']}</span></td>
-                    <td>{$row['ubicacion']}</td>
-                    <td>{$fecha_eliminacion}</td>
-                    <td>
-                        <button class='btn recuperar btn-sm' idregistros='{$row['id_mesa']}' style='background-color: #28a745; color: white; border: none;'>Recuperar</button>
-                        <button class='btn eliminar-permanente btn-sm' idregistros='{$row['id_mesa']}' style='background-color: #dc3545; color: white; border: none;'>Eliminar Permanentemente</button>
-                    </td>
-                </tr>";
-            }
-        }
-        echo $tabla;
-        exit;
-    }
-
     // ================= GUARDAR =================
     if ($funcion == "Guardar") {
         $numero_mesa = $_POST['numero_mesa'];
@@ -76,6 +47,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         $ubicacion = $_POST['ubicacion'];
 
         try {
+            // Verificar si el número de mesa ya existe (incluyendo mesas eliminadas)
+            $stmt = $conexion->prepare("SELECT id_mesa FROM mesas WHERE numero_mesa = :numero_mesa");
+            $stmt->execute([':numero_mesa' => $numero_mesa]);
+
+            if ($stmt->rowCount() > 0) {
+                echo "Error: El número de mesa $numero_mesa ya existe en el sistema.";
+                exit;
+            }
+
             $stmt = $conexion->prepare("INSERT INTO mesas (numero_mesa, capacidad, estado, ubicacion) VALUES (:numero_mesa, :capacidad, :estado, :ubicacion)");
             $ok = $stmt->execute([
                 ':numero_mesa' => $numero_mesa,
@@ -85,13 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             ]);
 
             echo $ok ? "Mesa insertada correctamente" : "Error al insertar la mesa";
-            
+
         } catch (PDOException $e) {
-            if (strpos($e->getMessage(), 'llave duplicada') !== false) {
-                echo "Error: El número de mesa $numero_mesa ya existe en el sistema (incluso si está eliminada).";
-            } else {
-                echo "Error de base de datos: " . $e->getMessage();
-            }
+            echo "Error de base de datos: " . $e->getMessage();
         }
         exit;
     }
@@ -105,9 +81,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         $ubicacion = $_POST['ubicacion'];
 
         try {
-            $stmt = $conexion->prepare("UPDATE mesas SET numero_mesa=:numero_mesa, capacidad=:capacidad, estado=:estado, ubicacion=:ubicacion WHERE id_mesa=:id");
-            $ok = $stmt->execute([
+            // Verificar si el número de mesa ya existe en otra mesa (excluyendo la actual)
+            $stmt = $conexion->prepare("SELECT id_mesa FROM mesas WHERE numero_mesa = :numero_mesa AND id_mesa != :id");
+            $stmt->execute([
                 ':numero_mesa' => $numero_mesa,
+                ':id' => $id
+            ]);
+
+            if ($stmt->rowCount() > 0) {
+                echo "Error: El número de mesa $numero_mesa ya existe en el sistema.";
+                exit;
+            }
+
+            $stmt = $conexion->prepare("UPDATE mesas SET capacidad=:capacidad, estado=:estado, ubicacion=:ubicacion WHERE id_mesa=:id");
+            $ok = $stmt->execute([
                 ':capacidad' => $capacidad,
                 ':estado' => $estado,
                 ':ubicacion' => $ubicacion,
@@ -115,13 +102,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             ]);
 
             echo $ok ? "Mesa actualizada correctamente" : "Error al actualizar la mesa";
-            
+
         } catch (PDOException $e) {
-            if (strpos($e->getMessage(), 'llave duplicada') !== false) {
-                echo "Error: El número de mesa $numero_mesa ya existe en el sistema.";
-            } else {
-                echo "Error de base de datos: " . $e->getMessage();
-            }
+            echo "Error de base de datos: " . $e->getMessage();
         }
         exit;
     }
@@ -129,27 +112,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
     // ================= ELIMINAR =================
     if ($funcion == "Eliminar") {
         $id = $_POST['idregistros'];
-        $stmt = $conexion->prepare("UPDATE mesas SET fechabaja=NOW() WHERE id_mesa=:id");
-        $stmt->execute([':id' => $id]);
-        echo "Mesa eliminada correctamente";
-        exit;
-    }
 
-    // ================= RECUPERAR MESA =================
-    if ($funcion == "Recuperar") {
-        $id = $_POST['idregistros'];
-        $stmt = $conexion->prepare("UPDATE mesas SET fechabaja=NULL, estado='disponible' WHERE id_mesa=:id");
-        $stmt->execute([':id' => $id]);
-        echo "Mesa recuperada correctamente";
-        exit;
-    }
-
-    // ================= ELIMINAR PERMANENTEMENTE =================
-    if ($funcion == "EliminarPermanente") {
-        $id = $_POST['idregistros'];
+        // Eliminación permanente
         $stmt = $conexion->prepare("DELETE FROM mesas WHERE id_mesa=:id");
-        $stmt->execute([':id' => $id]);
-        echo "Mesa eliminada permanentemente";
+        $result = $stmt->execute([':id' => $id]);
+
+        echo $result ? "Mesa eliminada correctamente" : "Error al eliminar la mesa";
         exit;
     }
 
@@ -161,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             $stmt->execute([':id' => $_POST['id']]);
             $row = $stmt->fetch(PDO::FETCH_ASSOC);
         }
-        
+
         $numero_mesa = $row['numero_mesa'] ?? "";
         $capacidad = $row['capacidad'] ?? "4";
         $estado = $row['estado'] ?? "disponible";
@@ -175,12 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
                 WHERE fechabaja IS NULL 
                 ORDER BY numero_mesa
             ");
-            
+
             $numeros_ocupados = [];
             while ($row_num = $stmt->fetch(PDO::FETCH_ASSOC)) {
                 $numeros_ocupados[] = $row_num['numero_mesa'];
             }
-            
+
             // Encontrar el primer número disponible
             $proximo_numero = 1;
             while (in_array($proximo_numero, $numeros_ocupados)) {
@@ -190,29 +158,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         }
 
         $opciones_capacidad = "
+            <option value='2' " . ($capacidad == '2' ? 'selected' : '') . ">2 personas</option>
             <option value='4' " . ($capacidad == '4' ? 'selected' : '') . ">4 personas</option>
+            <option value='5' " . ($capacidad == '5' ? 'selected' : '') . ">5 personas</option>
+            <option value='6' " . ($capacidad == '6' ? 'selected' : '') . ">6 personas</option>
             <option value='8' " . ($capacidad == '8' ? 'selected' : '') . ">8 personas</option>
             <option value='12' " . ($capacidad == '12' ? 'selected' : '') . ">12 personas</option>
+
+
         ";
 
-        // Solo disponible como estado
-        $opciones_estado = "<option value='disponible' selected>Disponible</option>";
+        $opciones_estado = "
+            <option value='disponible' " . ($estado == 'disponible' ? 'selected' : '') . ">Disponible</option>
+            <option value='ocupada' " . ($estado == 'ocupada' ? 'selected' : '') . ">Ocupada</option>
+            <option value='reservada' " . ($estado == 'reservada' ? 'selected' : '') . ">Reservada</option>
+        ";
 
         $opciones_ubicacion = "
-            <option value='Zona interior' " . ($ubicacion == 'Zona interior' ? 'selected' : '') . ">Zona interior</option>
-            <option value='Zona privada' " . ($ubicacion == 'Zona privada' ? 'selected' : '') . ">Zona privada</option>
-            <option value='Terraza' " . ($ubicacion == 'Terraza' ? 'selected' : '') . ">Terraza</option>
-            <option value='Barra' " . ($ubicacion == 'Barra' ? 'selected' : '') . ">Barra</option>
+            <option value='Zona entrada' " . ($ubicacion == 'Zona entrada' ? 'selected' : '') . ">Zona entrada</option>
+            <option value='Zona barra' " . ($ubicacion == 'Zona barra' ? 'selected' : '') . ">Zona barra</option>
+            <option value='Zona baños' " . ($ubicacion == 'Zona baños' ? 'selected' : '') . ">Zona baños</option>
         ";
 
-        $readonly = $_POST['tipo'] == "Nuevo" ? "readonly" : "";
+        // Campo de número de mesa: readonly en edición, solo lectura en nuevo
+        $readonly = $_POST['tipo'] == "Editar" ? "readonly" : "";
 
         echo "
         <div class='row'>
             <div class='col-md-6'>
                 <label>Número de Mesa</label>
                 <input type='number' class='form-control' id='numero_mesa' value='$numero_mesa' min='1' $readonly required>
-                " . ($_POST['tipo'] == "Nuevo" ? "<small class='text-muted'>Número asignado automáticamente</small>" : "") . "
+                " . ($_POST['tipo'] == "Nuevo" ? "<small class='text-muted'>Número asignado automáticamente</small>" : "<small class='text-muted'>El número de mesa no se puede modificar</small>") . "
             </div>
             <div class='col-md-6'>
                 <label>Capacidad</label>
@@ -222,10 +198,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             </div>
             <div class='col-md-6 mt-3'>
                 <label>Estado</label>
-                <select class='form-control' id='estado' required readonly>
+                <select class='form-control' id='estado' required>
                     $opciones_estado
                 </select>
-                <small class='text-muted'>Siempre disponible al crear</small>
             </div>
             <div class='col-md-6 mt-3'>
                 <label>Ubicación</label>
@@ -244,8 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
                 COUNT(*) as total_mesas,
                 SUM(CASE WHEN estado = 'disponible' THEN 1 ELSE 0 END) as disponibles,
                 SUM(CASE WHEN estado = 'ocupada' THEN 1 ELSE 0 END) as ocupadas,
-                SUM(CASE WHEN estado = 'reservada' THEN 1 ELSE 0 END) as reservadas,
-                (SELECT COUNT(*) FROM mesas WHERE fechabaja IS NOT NULL) as eliminadas
+                SUM(CASE WHEN estado = 'reservada' THEN 1 ELSE 0 END) as reservadas
             FROM mesas 
             WHERE fechabaja IS NULL
         ");

@@ -1,6 +1,45 @@
 <?php
-session_start(); // ← AGREGAR ESTO AL INICIO
-include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
+session_start();
+require_once 'check_session.php';
+require_once 'conexion.php';
+
+// VERIFICACIÓN TEMPORAL SIMPLIFICADA - PERMITIR ACCESO MIENTRAS SE CONFIGURA
+$pagina_actual = 'roles.php';
+
+try {
+    // Primero verificar si las tablas de permisos existen
+    $stmt = $conexion->prepare("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'permisos_menu'
+        ) as tabla_existe
+    ");
+    $stmt->execute();
+    $tabla_existe = $stmt->fetch(PDO::FETCH_ASSOC);
+
+    if ($tabla_existe['tabla_existe'] == 't' || $tabla_existe['tabla_existe'] === true) {
+        // La tabla existe, verificar permisos
+        $stmt = $conexion->prepare("
+            SELECT COUNT(*) as tiene_permiso 
+            FROM permisos_menu pm 
+            INNER JOIN menu_items mi ON pm.menu_item_id = mi.id 
+            WHERE pm.id_usuario = ? AND mi.url = ? AND pm.activo = true
+        ");
+        $stmt->execute([$_SESSION['id_usuario'], $pagina_actual]);
+        $permiso = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        if (!$permiso || $permiso['tiene_permiso'] == 0) {
+            // Si no tiene permiso específico, verificar si es administrador
+            if ($_SESSION['SISTEMA']['rol'] != 1) {
+                header('Location: acceso_denegado.php');
+                exit;
+            }
+        }
+    }
+} catch (Exception $e) {
+    error_log("Error en verificación de permisos: " . $e->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -9,32 +48,24 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Gestión de Roles</title>
-
-    <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- DataTables CSS -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <!-- Bootstrap Icons -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
-    <!-- SweetAlert2 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-
     <style>
         :root {
             --primary-color: #67C090;
-            /* Verde principal */
             --secondary-color: #DDF4E7;
-            /* Fondo claro */
             --danger-color: #124170;
-            /* Usamos azul oscuro como "peligro" */
             --light-color: #26667F;
-            /* Azul medio para encabezados / modal */
         }
 
         body {
             background-color: var(--secondary-color) !important;
-            padding-top: 20px;
+            padding-top: 0;
+            margin: 0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
         }
 
         .container-custom {
@@ -68,57 +99,10 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .btn-danger-custom {
-            background-color: var(--danger-color);
-            color: white;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 16px;
-            border: none;
-            transition: all 0.3s;
-        }
-
-        .btn-danger-custom:hover {
-            background-color: var(--light-color);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .btn-action {
-            padding: 5px 12px;
-            margin: 0 3px;
-            font-size: 14px;
-            border-radius: 5px;
-            transition: all 0.2s;
-        }
-
-        .btn-edit {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-delete {
-            background-color: var(--danger-color);
-            color: white;
-        }
-
-        .btn-action:hover {
-            opacity: 0.9;
-            transform: scale(1.05);
-        }
-
         .table-container {
             padding: 25px;
             background: white;
             border-radius: 0 0 15px 15px;
-        }
-
-        #rolesTable {
-            border-collapse: separate;
-            border-spacing: 0;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 0 15px rgba(0, 0, 0, 0.05);
         }
 
         #rolesTable thead th {
@@ -128,33 +112,13 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
             padding: 15px;
         }
 
-        #rolesTable tbody td {
-            padding: 12px 15px;
-            vertical-align: middle;
-        }
-
-        #rolesTable tbody tr {
-            transition: background-color 0.2s;
-        }
-
         #rolesTable tbody tr:hover {
             background-color: rgba(103, 192, 144, 0.1);
-            /* Verde suave */
         }
 
         .modal-header {
             background-color: var(--light-color);
             border-bottom: 2px solid var(--primary-color);
-        }
-
-        .modal-title {
-            color: var(--primary-color);
-            font-weight: 600;
-        }
-
-        .form-label {
-            font-weight: 500;
-            color: #444;
         }
 
         .header-actions {
@@ -180,112 +144,368 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
             font-weight: 700;
         }
 
-        @media (max-width: 768px) {
-            .header-actions {
-                flex-direction: column;
-                gap: 15px;
+        /* Estilos del sidebar integrados */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 100vh;
+            width: 220px;
+            background-color: var(--danger-color);
+            transition: all 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .sidebar.collapsed {
+            width: 60px;
+        }
+
+        .sidebar-header {
+            padding: 15px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .sidebar-brand {
+            color: white;
+            font-size: 1.1rem;
+            font-weight: bold;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .sidebar-brand span {
+            transition: opacity 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .sidebar.collapsed .sidebar-brand span {
+            opacity: 0;
+            display: none;
+        }
+
+        .sidebar-nav {
+            padding: 10px 0;
+        }
+
+        .nav-item {
+            margin-bottom: 2px;
+        }
+
+        .nav-link {
+            color: white !important;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            font-size: 0.9rem;
+        }
+
+        .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--primary-color) !important;
+            border-left-color: var(--primary-color);
+        }
+
+        .nav-link.active {
+            background-color: rgba(103, 192, 144, 0.2);
+            color: var(--primary-color) !important;
+            border-left-color: var(--primary-color);
+        }
+
+        .nav-link i {
+            font-size: 1.1rem;
+            width: 20px;
+            text-align: center;
+        }
+
+        .nav-link span {
+            transition: opacity 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .sidebar.collapsed .nav-link span {
+            opacity: 0;
+            display: none;
+        }
+
+        .dropdown-menu {
+            background-color: var(--light-color);
+            border: none;
+            border-radius: 0 8px 8px 0;
+            margin-left: 8px;
+            min-width: 180px;
+        }
+
+        .dropdown-item {
+            color: white !important;
+            padding: 8px 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+        }
+
+        .dropdown-item:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--primary-color) !important;
+        }
+
+        .dropdown-item.text-danger {
+            color: #dc3545 !important;
+        }
+
+        .dropdown-item.text-danger:hover {
+            color: #bd2130 !important;
+            background-color: rgba(220, 53, 69, 0.1);
+        }
+
+        .dropdown-toggle::after {
+            transition: transform 0.3s ease;
+            font-size: 0.8rem;
+        }
+
+        .sidebar.collapsed .dropdown-toggle::after {
+            display: none;
+        }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1001;
+            background: var(--primary-color);
+            border: none;
+            border-radius: 4px;
+            color: white;
+            padding: 6px 10px;
+            cursor: pointer;
+            display: none;
+            font-size: 0.9rem;
+        }
+
+        .main-content {
+            margin-left: 220px;
+            transition: margin-left 0.3s ease;
+            min-height: 100vh;
+            background-color: var(--secondary-color);
+            padding: 15px;
+        }
+
+        .main-content.expanded {
+            margin-left: 60px;
+        }
+
+        @media (max-width: 992px) {
+            .sidebar {
+                transform: translateX(-100%);
+                width: 220px;
             }
 
-            .btn-custom,
-            .btn-danger-custom {
-                width: 100%;
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            .main-content.mobile-expanded {
+                margin-left: 0;
+            }
+
+            .sidebar-toggle {
+                display: block;
+            }
+
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+
+            .sidebar.collapsed.mobile-open {
+                transform: translateX(0);
+                width: 220px;
             }
         }
-    </style>
 
+        .sidebar::-webkit-scrollbar {
+            width: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 5px;
+        }
+    </style>
 </head>
 
 <body>
-    <?php include "menu.php"; ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            // Mover el contenido al main-content
-            const existingContent = document.querySelector('.container-custom');
-            const mainContent = document.getElementById('mainContent');
+    <!-- Botón toggle para móvil -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="bi bi-list"></i>
+    </button>
 
-            if (existingContent && mainContent) {
-                mainContent.appendChild(existingContent);
-            }
-        });
-    </script>
-    <div class="container container-custom">
-        <div class="banner text-center">
-            <h1><i class="bi bi-person-badge"></i> Sistema de Gestión de Roles</h1>
+    <?php include 'menu.php'; ?>
+
+    <!-- Contenido principal -->
+    <div class="main-content" id="mainContent">
+        <div class="container container-custom">
+            <div class="banner text-center">
+                <h1><i class="bi bi-person-badge"></i> Sistema de Gestión de Roles</h1>
+            </div>
+            <div class="header-actions">
+                <div>
+                    <button class="btn-custom" id="nuevo">
+                        <i class="bi bi-plus-circle"></i> Nuevo Rol
+                    </button>
+                </div>
+                <div class="d-none d-md-block">
+                    <div class="d-flex gap-2">
+                        <div class="stats-card text-center">
+                            <div class="stats-number" id="total-roles">0</div>
+                            <small>Roles Totales</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="rolesTable" class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Nombre del Rol</th>
+                            <th>Opciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultados_roles">
+                        <tr>
+                            <td colspan="2" class="text-center">Cargando datos de roles...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
 
-        <div class="header-actions">
-            <div>
-                <button class="btn-custom" id="nuevo">
-                    <i class="bi bi-plus-circle"></i> Nuevo Rol
-                </button>
-            </div>
-            <div class="d-none d-md-block">
-                <div class="d-flex gap-2">
-                    <div class="stats-card text-center">
-                        <div class="stats-number" id="total-roles">0</div>
-                        <small>Roles Totales</small>
+        <!-- Modal -->
+        <div class="modal fade" id="roleModal" tabindex="-1" aria-labelledby="roleModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="roleModalLabel">Gestión de Rol</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="modal-body">
+                        <!-- Contenido del modal se cargará aquí -->
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                        <button type="button" class="btn-custom" id="guardar-rol">Guardar Rol</button>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="table-container">
-            <table id="rolesTable" class="table table-hover">
-                <thead>
-                    <tr>
-                        <th>Nombre del Rol</th>
-                        <th>Opciones</th>
-                    </tr>
-                </thead>
-                <tbody id="resultados_roles">
-                    <tr>
-                        <td colspan="2" class="text-center">Cargando datos de roles...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
     </div>
-    <!-- Modal -->
-    <div class="modal fade" id="roleModal" tabindex="-1" aria-labelledby="roleModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="roleModalLabel">Gestión de Rol</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body" id="modal-body">
-                    <!-- Contenido del modal se cargará aquí -->
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-                    <button type="button" class="btn-custom" id="guardar-rol">Guardar Rol</button>
-                </div>
-            </div>
-        </div>
-    </div>
+
     <!-- JS -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
+        // ========== FUNCIONES DEL SIDEBAR ==========
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        }
+
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('mobile-open');
+            mainContent.classList.toggle('mobile-expanded');
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            if (window.innerWidth <= 992) {
+                sidebar.classList.remove('mobile-open');
+                mainContent.classList.remove('mobile-expanded');
+            }
+        }
+
+        function confirmLogout() {
+            Swal.fire({
+                title: '¿Cerrar sesión?',
+                text: "¿Estás seguro de que quieres salir del sistema?",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Sí, cerrar sesión',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    window.location.href = 'logout.php';
+                }
+            });
+        }
+
+        // ========== INICIALIZACIÓN DEL SIDEBAR ==========
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const mainContent = document.getElementById('mainContent');
+
+            sidebarToggle.addEventListener('click', toggleMobileSidebar);
+            mainContent.addEventListener('click', closeMobileSidebar);
+
+            function handleResize() {
+                const sidebar = document.getElementById('sidebar');
+                if (window.innerWidth > 992) {
+                    sidebar.classList.remove('mobile-open');
+                    mainContent.classList.remove('mobile-expanded');
+                } else {
+                    sidebar.classList.remove('collapsed');
+                    mainContent.classList.remove('expanded');
+                }
+            }
+
+            window.addEventListener('resize', handleResize);
+
+            // Auto-colapsar en móvil
+            if (window.innerWidth <= 992) {
+                closeMobileSidebar();
+            }
+        });
+
+        // ========== FUNCIONES DE ROLES ==========
         $(document).ready(function () {
-            // Variable para la DataTable
             let dataTable;
-            // Variable para almacenar el modo actual (nuevo/editar) y el ID
             let currentMode = 'new';
             let currentId = null;
 
-            // Inicializar la tabla
             function initTable() {
                 cargarTabla();
             }
 
-            // Cargar datos de la tabla desde la base de datos
             function cargarTabla() {
                 $.post("funciones/roles.php", { funcion: "Tabla" }, function (response) {
                     $("#resultados_roles").html(response);
 
-                    // Inicializar DataTable si no existe
                     if (!$.fn.DataTable.isDataTable('#rolesTable')) {
                         dataTable = $('#rolesTable').DataTable({
                             language: {
@@ -307,7 +527,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                             lengthMenu: [5, 10, 20, 50]
                         });
                     } else {
-                        // Recargar la tabla si ya existe
                         dataTable.destroy();
                         $("#resultados_roles").html(response);
                         dataTable = $('#rolesTable').DataTable({
@@ -330,8 +549,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                             lengthMenu: [5, 10, 20, 50]
                         });
                     }
-
-                    // Actualizar estadísticas
                     actualizarEstadisticas();
                 }).fail(function () {
                     Swal.fire("Error", "No se pudo cargar la tabla de roles", "error");
@@ -339,14 +556,11 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 });
             }
 
-            // Actualizar estadísticas
             function actualizarEstadisticas() {
-                // Contar filas en la tabla (excluyendo la fila de "no data")
                 const totalRoles = $('#rolesTable tbody tr').not('.dataTables_empty').length;
                 $('#total-roles').text(totalRoles);
             }
 
-            // Mostrar modal para nuevo rol
             $('#nuevo').click(function () {
                 currentMode = 'new';
                 currentId = null;
@@ -355,7 +569,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 $('#roleModal').modal('show');
             });
 
-            // Delegación de eventos para los botones de editar y eliminar
             $(document).on('click', '.editar', function () {
                 const id = $(this).attr('idregistros');
                 currentMode = 'edit';
@@ -369,7 +582,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 eliminarRol(id);
             });
 
-            // Función para cargar el formulario de edición
             function cargarFormularioEdicion(id) {
                 $.post("funciones/roles.php", {
                     funcion: "Modal",
@@ -383,7 +595,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 });
             }
 
-            // Función para mostrar el formulario vacío (nuevo rol)
             function mostrarFormulario() {
                 $.post("funciones/roles.php", {
                     funcion: "Modal",
@@ -395,7 +606,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 });
             }
 
-            // Guardar rol (nuevo o edición)
             $('#guardar-rol').click(function () {
                 const nombre_rol = $('#nombre_rol').val();
 
@@ -404,14 +614,12 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                     return;
                 }
 
-                // Determinar la función a llamar según el modo
                 const funcion = currentMode === 'new' ? 'Guardar' : 'Editar';
                 const data = {
                     funcion: funcion,
                     nombre_rol: nombre_rol
                 };
 
-                // Si es edición, agregar el ID
                 if (currentMode === 'edit') {
                     data.idregistros = currentId;
                 }
@@ -427,19 +635,12 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                     }
                 });
 
-                // Enviar datos al servidor
                 $.post("funciones/roles.php", data, function (response) {
                     if (response.includes("Error") || response.includes("error") || response.includes("No se puede")) {
                         Swal.fire('Error', response, 'error');
                     } else {
-                        Swal.fire(
-                            'Éxito',
-                            response,
-                            'success'
-                        );
+                        Swal.fire('Éxito', response, 'success');
                         $('#roleModal').modal('hide');
-
-                        // Recargar la tabla
                         cargarTabla();
                     }
                 }).fail(function () {
@@ -447,7 +648,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 });
             });
 
-            // Eliminar rol
             function eliminarRol(id) {
                 Swal.fire({
                     title: '¿Está seguro?',
@@ -471,7 +671,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                             }
                         });
 
-                        // Enviar solicitud de eliminación al servidor
                         $.post("funciones/roles.php", {
                             funcion: "Eliminar",
                             idregistros: id
@@ -479,12 +678,7 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                             if (response.includes("No se puede")) {
                                 Swal.fire('Error', response, 'error');
                             } else {
-                                Swal.fire(
-                                    'Eliminado',
-                                    response,
-                                    'success'
-                                );
-                                // Recargar la tabla
+                                Swal.fire('Eliminado', response, 'success');
                                 cargarTabla();
                             }
                         }).fail(function () {
@@ -494,7 +688,6 @@ include("check_session.php"); // ← AGREGAR ESTO PARA VERIFICAR SESIÓN
                 });
             }
 
-            // Inicializar la tabla al cargar la página
             initTable();
         });
     </script>

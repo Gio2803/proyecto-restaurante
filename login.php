@@ -1,20 +1,23 @@
 <?php
 session_start(); // ← AGREGAR ESTO AL INICIO
+require_once 'conexion.php'; // Necesitamos la conexión para verificar
 ?>
+
+<!DOCTYPE html>
+<html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <title>Login - Pizzería</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" 
-          rel="stylesheet" 
-          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" 
-          crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
 
     <style>
         :root {
-            --primary-color: #67C090;   /* Verde principal */
-            --secondary-color: #DDF4E7; /* Fondo claro */
-            --danger-color: #124170;    /* Azul oscuro */
-            --light-color: #26667F;     /* Azul medio */
+            --primary-color: #67C090;
+            --secondary-color: #DDF4E7;
+            --danger-color: #124170;
+            --light-color: #26667F;
         }
 
         body {
@@ -85,7 +88,7 @@ session_start(); // ← AGREGAR ESTO AL INICIO
 
         .logo-section h2 {
             font-weight: bold;
-            text-shadow: 2px 2px 5px rgba(0,0,0,0.5);
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
@@ -105,22 +108,21 @@ session_start(); // ← AGREGAR ESTO AL INICIO
                             <div class="login-body">
                                 <div class="mb-4">
                                     <label for="usuario" class="form-label">Usuario</label>
-                                    <input type="text" class="form-control" id="usuario" placeholder="Ingresa tu usuario" required>
+                                    <input type="text" class="form-control" id="usuario"
+                                        placeholder="Ingresa tu usuario" required>
                                 </div>
                                 <div class="mb-4">
                                     <label for="contrasena" class="form-label">Contraseña</label>
-                                    <input type="password" class="form-control" id="contrasena" placeholder="Ingresa tu contraseña" required>
+                                    <input type="password" class="form-control" id="contrasena"
+                                        placeholder="Ingresa tu contraseña" required>
                                 </div>
                                 <button class="btn-custom w-100" id="iniciar">Ingresar</button>
                             </div>
                         </div>
 
-                       
                         <div class="col-md-6 logo-section">
-                            
                             <div class="text-center">
                                 <img src="imagenes/logo.jpg" alt="Logo Pizzería">
-                               
                                 <p>🍕 ¡La mejor pizza de la ciudad!</p>
                             </div>
                         </div>
@@ -167,6 +169,43 @@ session_start(); // ← AGREGAR ESTO AL INICIO
                             $('#usuario').val("");
                             $('#contrasena').val("");
                         } else {
+                            // Verificar si el sistema necesita instalación
+                            verificarInstalacionSistema();
+                        }
+                    },
+                    error: function () {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Oops...',
+                            text: 'Error al procesar la solicitud.'
+                        });
+                    }
+                });
+            });
+
+            // Función JavaScript para verificar la instalación del sistema
+            function verificarInstalacionSistema() {
+                $.ajax({
+                    type: "POST",
+                    url: "verificar_instalacion.php",
+                    dataType: "json",
+                    success: function (response) {
+                        if (response.necesita_instalacion) {
+                            Swal.fire({
+                                title: 'Sistema No Configurado',
+                                html: 'El sistema de menús no está configurado. ¿Desea configurarlo ahora?',
+                                icon: 'warning',
+                                showCancelButton: true,
+                                confirmButtonText: 'Sí, configurar',
+                                cancelButtonText: 'Continuar igual'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.href = "instalar_sistema.php";
+                                } else {
+                                    window.location.href = "croquis.php";
+                                }
+                            });
+                        } else {
                             Swal.fire({
                                 icon: 'success',
                                 title: 'Éxito',
@@ -179,14 +218,20 @@ session_start(); // ← AGREGAR ESTO AL INICIO
                         }
                     },
                     error: function () {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Oops...',
-                            text: 'Error al procesar la solicitud.'
-                        });
+                        // Si hay error, redirigir normalmente
+                        window.location.href = "croquis.php";
                     }
                 });
+            }
+
+            // Permitir login con Enter
+            $('#usuario, #contrasena').keypress(function (e) {
+                if (e.which == 13) {
+                    $('#iniciar').click();
+                }
             });
         });
     </script>
 </body>
+
+</html>

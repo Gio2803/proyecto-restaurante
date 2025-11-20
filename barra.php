@@ -10,7 +10,7 @@ require_once 'conexion.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cocina - Pizzería</title>
+    <title>Barra - Pizzería</title>
 
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -25,7 +25,7 @@ require_once 'conexion.php';
             --secondary-color: #DDF4E7;
             --danger-color: #124170;
             --light-color: #26667F;
-            --cocina-color: #DC3545;
+            --barra-color: #17A2B8;
             --sidebar-width: 220px;
             --sidebar-collapsed: 60px;
         }
@@ -205,7 +205,7 @@ require_once 'conexion.php';
             }
         }
 
-        /* ESTILOS ESPECÍFICOS DE COCINA */
+        /* ESTILOS ESPECÍFICOS DE BARRA */
         body {
             background-color: var(--secondary-color) !important;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -223,7 +223,7 @@ require_once 'conexion.php';
         }
 
         .banner {
-            background-color: var(--cocina-color);
+            background-color: var(--barra-color);
             color: white;
             padding: 15px;
             border-radius: 15px 15px 0 0;
@@ -256,7 +256,7 @@ require_once 'conexion.php';
         }
 
         .stats-card {
-            background: linear-gradient(135deg, var(--cocina-color), #e74c3c);
+            background: linear-gradient(135deg, var(--barra-color), #2980b9);
             color: white;
             border-radius: 10px;
             padding: 15px;
@@ -270,9 +270,9 @@ require_once 'conexion.php';
             font-weight: 700;
         }
 
-        /* Área de cocina */
-        .area-cocina {
-            border: 3px solid var(--cocina-color);
+        /* Área de barra */
+        .area-barra {
+            border: 3px solid var(--barra-color);
             border-radius: 10px;
             padding: 15px;
             background: #f8f9fa;
@@ -280,7 +280,7 @@ require_once 'conexion.php';
         }
 
         .area-header {
-            background: var(--cocina-color);
+            background: var(--barra-color);
             color: white;
             padding: 10px;
             border-radius: 8px;
@@ -303,7 +303,7 @@ require_once 'conexion.php';
             border-radius: 12px;
             padding: 15px;
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-            border-left: 5px solid var(--cocina-color);
+            border-left: 5px solid var(--barra-color);
             transition: all 0.3s;
             min-height: 200px;
             display: flex;
@@ -337,7 +337,7 @@ require_once 'conexion.php';
         }
 
         .badge-tiempo {
-            background: #dc3545;
+            background: var(--barra-color);
             color: white;
             padding: 3px 8px;
             border-radius: 10px;
@@ -503,12 +503,12 @@ require_once 'conexion.php';
         }
 
         .productos-lista::-webkit-scrollbar-thumb {
-            background: var(--cocina-color);
+            background: var(--barra-color);
             border-radius: 2px;
         }
 
         .productos-lista::-webkit-scrollbar-thumb:hover {
-            background: #c82333;
+            background: #138496;
         }
 
         /* Responsive */
@@ -516,46 +516,15 @@ require_once 'conexion.php';
             .pedidos-grid {
                 grid-template-columns: 1fr;
             }
-
+            
             .pedido-card {
                 min-height: auto;
             }
-
+            
             .header-actions {
                 flex-direction: column;
                 gap: 15px;
             }
-        }
-
-        /* Estilos para notas en cocina */
-        .nota-producto-cocina {
-            background: #fff3cd;
-            border-left: 3px solid #ffc107;
-            padding: 4px 8px;
-            margin-top: 3px;
-            border-radius: 3px;
-            font-size: 0.75em;
-            color: #856404;
-        }
-
-        .nota-producto-cocina strong {
-            color: #856404;
-        }
-
-        /* Destacar productos con notas */
-        .producto-item.con-nota {
-            background: #fffdf6;
-            border: 1px solid #ffeaa7;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            padding: 8px;
-        }
-
-        /* Indicador visual para productos con notas */
-        .indicador-nota {
-            color: #e67e22;
-            margin-right: 5px;
-            font-size: 0.9em;
         }
     </style>
 </head>
@@ -567,17 +536,17 @@ require_once 'conexion.php';
     </button>
 
     <?php include 'menu.php'; ?>
-
+    
     <!-- Contenido principal -->
     <div class="main-content" id="mainContent">
         <div class="container container-custom">
             <div class="banner">
-                <h1><i class="bi bi-fire"></i> COCINA - Pizzas, Complementos y Postres</h1>
+                <h1><i class="bi bi-cup-straw"></i> BARRA - Bebidas</h1>
             </div>
 
             <div class="header-actions">
                 <div>
-
+                    
                 </div>
                 <div class="d-none d-md-block">
                     <div class="d-flex gap-2">
@@ -597,13 +566,13 @@ require_once 'conexion.php';
                 </div>
             </div>
 
-            <!-- Área de Cocina -->
-            <div class="area-cocina">
+            <!-- Área de Barra -->
+            <div class="area-barra">
                 <div class="area-header">
-                    <i class="bi bi-fire"></i> PEDIDOS DE COCINA
+                    <i class="bi bi-cup-straw"></i> PEDIDOS DE BARRA
                 </div>
-                <div class="pedidos-grid" id="pedidos-cocina-container">
-                    <!-- Los pedidos de cocina se cargarán aquí -->
+                <div class="pedidos-grid" id="pedidos-barra-container">
+                    <!-- Los pedidos de barra se cargarán aquí -->
                 </div>
             </div>
         </div>
@@ -665,17 +634,17 @@ require_once 'conexion.php';
             }
         });
 
-        // ========== FUNCIONES DE COCINA ==========
-        const categoriasCocina = ['Pizzas', 'Complementos', 'Postres'];
+        // ========== FUNCIONES DE BARRA ==========
+        const categoriasBarra = ['Bebidas'];
         let intervaloActualizacion = null;
 
-        // Cargar pedidos de cocina
-        function cargarPedidosCocina() {
+        // Cargar pedidos de barra
+        function cargarPedidosBarra() {
             $.ajax({
-                url: 'funciones/cocina.php',
+                url: 'funciones/barra.php',
                 type: 'POST',
                 data: {
-                    funcion: 'ObtenerPedidosCocina'
+                    funcion: 'ObtenerPedidosBarra'
                 },
                 dataType: 'json',
                 success: function (data) {
@@ -683,7 +652,7 @@ require_once 'conexion.php';
                         console.error('Error:', data.error);
                         return;
                     }
-                    procesarPedidosCocina(data);
+                    procesarPedidosBarra(data);
                 },
                 error: function (xhr, status, error) {
                     console.error('AJAX Error:', error);
@@ -691,25 +660,25 @@ require_once 'conexion.php';
             });
         }
 
-        // Procesar y mostrar pedidos de cocina
-        function procesarPedidosCocina(pedidos) {
-            const pedidosCocina = [];
+        // Procesar y mostrar pedidos de barra
+        function procesarPedidosBarra(pedidos) {
+            const pedidosBarra = [];
             let totalPedidos = 0;
             let pedidosPendientes = 0;
             let pedidosPreparacion = 0;
 
-            // Filtrar solo pedidos de cocina
+            // Filtrar solo pedidos de barra
             pedidos.forEach(pedido => {
-                const productosCocina = pedido.detalles.filter(detalle =>
-                    categoriasCocina.some(categoria =>
+                const productosBarra = pedido.detalles.filter(detalle =>
+                    categoriasBarra.some(categoria =>
                         detalle.categoria_nombre === categoria
                     )
                 );
 
-                if (productosCocina.length > 0) {
-                    pedidosCocina.push({
+                if (productosBarra.length > 0) {
+                    pedidosBarra.push({
                         ...pedido,
-                        productos: productosCocina
+                        productos: productosBarra
                     });
                     totalPedidos++;
 
@@ -721,26 +690,26 @@ require_once 'conexion.php';
                 }
             });
 
-            actualizarEstadisticasCocina(totalPedidos, pedidosPendientes, pedidosPreparacion);
-            mostrarPedidosCocina(pedidosCocina);
+            actualizarEstadisticasBarra(totalPedidos, pedidosPendientes, pedidosPreparacion);
+            mostrarPedidosBarra(pedidosBarra);
         }
 
-        // Actualizar estadísticas de cocina
-        function actualizarEstadisticasCocina(total, pendientes, preparacion) {
+        // Actualizar estadísticas de barra
+        function actualizarEstadisticasBarra(total, pendientes, preparacion) {
             document.getElementById('total-pedidos').textContent = total;
             document.getElementById('pedidos-pendientes').textContent = pendientes;
             document.getElementById('pedidos-preparacion').textContent = preparacion;
         }
 
-        // Mostrar pedidos de cocina
-        function mostrarPedidosCocina(pedidos) {
-            const container = document.getElementById('pedidos-cocina-container');
+        // Mostrar pedidos de barra
+        function mostrarPedidosBarra(pedidos) {
+            const container = document.getElementById('pedidos-barra-container');
 
             if (pedidos.length === 0) {
                 container.innerHTML = `
                     <div class="sin-pedidos">
                         <i class="bi bi-check-circle" style="font-size: 3em; color: #28a745;"></i>
-                        <p>No hay pedidos pendientes para cocina</p>
+                        <p>No hay pedidos pendientes para barra</p>
                     </div>
                 `;
                 return;
@@ -749,13 +718,13 @@ require_once 'conexion.php';
             container.innerHTML = '';
 
             pedidos.forEach(pedido => {
-                const card = crearTarjetaPedidoCocina(pedido);
+                const card = crearTarjetaPedidoBarra(pedido);
                 container.appendChild(card);
             });
         }
 
-        // Crear tarjeta de pedido para cocina
-        function crearTarjetaPedidoCocina(pedido) {
+        // Crear tarjeta de pedido para barra
+        function crearTarjetaPedidoBarra(pedido) {
             const card = document.createElement('div');
             card.className = 'pedido-card';
 
@@ -808,7 +777,7 @@ require_once 'conexion.php';
                 </div>
                 
                 <div class="productos-lista">
-                    ${generarListaProductosCocina(pedido.productos, pedido.id_pedido)}
+                    ${generarListaProductosBarra(pedido.productos, pedido.id_pedido)}
                 </div>
                 
                 <div class="pedido-actions">
@@ -822,76 +791,50 @@ require_once 'conexion.php';
             return card;
         }
 
-        // Generar lista de productos para cocina (VERSIÓN MEJORADA)
-        function generarListaProductosCocina(productos, idPedido) {
+        // Generar lista de productos para barra
+        function generarListaProductosBarra(productos, idPedido) {
             let html = '';
 
             productos.forEach((producto, index) => {
                 const estadoProducto = producto.estado_producto || 'pendiente';
-                const tieneNota = producto.nota && producto.nota.trim() !== '';
                 let btnEstado = '';
-                let notaHTML = '';
-
-                // Mostrar nota si existe (versión mejorada)
-                if (tieneNota) {
-                    notaHTML = `
-                <div class="nota-producto-cocina" style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 1px solid #ffc107; padding: 6px 10px; margin-top: 5px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <div style="display: flex; align-items: flex-start; gap: 8px;">
-                        <i class="bi bi-exclamation-triangle-fill" style="color: #e67e22; font-size: 1.1em;"></i>
-                        <div style="flex: 1;">
-                            <strong style="color: #856404; font-size: 0.85em;">NOTA ESPECIAL:</strong>
-                            <div style="color: #856404; font-size: 0.8em; margin-top: 2px;">${producto.nota}</div>
-                        </div>
-                    </div>
-                </div>
-            `;
-                }
-
-                // Determinar clase CSS según si tiene nota
-                const claseProducto = tieneNota ? 'producto-item con-nota' : 'producto-item';
 
                 if (estadoProducto === 'pendiente') {
                     btnEstado = `
-                <button class="btn-accion btn-preparar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'en_preparacion')">
-                    <i class="bi bi-play-circle"></i> Preparar
-                </button>
-            `;
+                        <button class="btn-accion btn-preparar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'en_preparacion')">
+                            <i class="bi bi-play-circle"></i> Preparar.
+                        </button>
+                    `;
                 } else if (estadoProducto === 'en_preparacion') {
                     btnEstado = `
-                <button class="btn-accion btn-terminar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'terminado')">
-                    <i class="bi bi-check-circle"></i> Listo
-                </button>
-            `;
+                        <button class="btn-accion btn-terminar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'terminado')">
+                            <i class="bi bi-check-circle"></i> Listo
+                        </button>
+                    `;
                 } else if (estadoProducto === 'terminado') {
                     btnEstado = `
-                <span class="estado-terminado">
-                    <i class="bi bi-check-all"></i> TERMINADO
-                </span>
-            `;
+                        <span class="estado-terminado">
+                            <i class="bi bi-check-all"></i> TERMINADO
+                        </span>
+                    `;
                 }
 
-                // Icono de nota en el nombre del producto
-                const iconoNota = tieneNota ? '<i class="bi bi-chat-left-text indicador-nota"></i>' : '';
-
                 html += `
-            <div class="${claseProducto}">
-                <div class="producto-info">
-                    <div class="producto-nombre">
-                        ${iconoNota}${producto.nombre_platillo}
+                    <div class="producto-item">
+                        <div class="producto-info">
+                            <div class="producto-nombre">${producto.nombre_platillo}</div>
+                            <div class="producto-cantidad">
+                                Cant: ${producto.cantidad} • 
+                                <span class="estado-${estadoProducto}">
+                                    ${estadoProducto.replace('_', ' ').toUpperCase()}
+                                </span>
+                            </div>
+                        </div>
+                        <div class="acciones-producto">
+                            ${btnEstado}
+                        </div>
                     </div>
-                    <div class="producto-cantidad">
-                        Cant: ${producto.cantidad} • 
-                        <span class="estado-${estadoProducto}">
-                            ${estadoProducto.replace('_', ' ').toUpperCase()}
-                        </span>
-                    </div>
-                    ${notaHTML}
-                </div>
-                <div class="acciones-producto">
-                    ${btnEstado}
-                </div>
-            </div>
-        `;
+                `;
             });
 
             return html;
@@ -900,7 +843,7 @@ require_once 'conexion.php';
         // Cambiar estado de un producto individual
         function cambiarEstadoProducto(idPedido, idDetalle, nuevoEstado) {
             $.ajax({
-                url: 'funciones/cocina.php',
+                url: 'funciones/barra.php',
                 type: 'POST',
                 data: {
                     funcion: 'CambiarEstadoProducto',
@@ -919,7 +862,7 @@ require_once 'conexion.php';
                             confirmButtonColor: '#67C090',
                             timer: 1500
                         }).then(() => {
-                            cargarPedidosCocina();
+                            cargarPedidosBarra();
                         });
                     } else {
                         Swal.fire('Error', data.message, 'error');
@@ -935,7 +878,7 @@ require_once 'conexion.php';
         // Cambiar estado completo del pedido
         function cambiarEstadoPedidoCompleto(idPedido, nuevoEstado) {
             $.ajax({
-                url: 'funciones/cocina.php',
+                url: 'funciones/barra.php',
                 type: 'POST',
                 data: {
                     funcion: 'CambiarEstadoPedidoCompleto',
@@ -960,7 +903,7 @@ require_once 'conexion.php';
                             confirmButtonColor: '#67C090',
                             timer: 1500
                         }).then(() => {
-                            cargarPedidosCocina();
+                            cargarPedidosBarra();
                         });
                     } else {
                         Swal.fire('Error', data.message, 'error');
@@ -975,8 +918,8 @@ require_once 'conexion.php';
 
         // ========== INICIALIZACIÓN ==========
         $(document).ready(function () {
-            cargarPedidosCocina();
-            intervaloActualizacion = setInterval(cargarPedidosCocina, 5000);
+            cargarPedidosBarra();
+            intervaloActualizacion = setInterval(cargarPedidosBarra, 5000);
         });
 
         window.addEventListener('beforeunload', function () {

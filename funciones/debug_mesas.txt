@@ -1,0 +1,12 @@
+Función ejecutada: Tabla
+Mesas activas encontradas: 48
+Función ejecutada: Estadisticas
+Función ejecutada: TablaEliminadas
+Buscando mesas eliminadas...
+Función ejecutada: TablaEliminadas
+Buscando mesas eliminadas...
+Mesas eliminadas encontradas: 5
+Mesas eliminadas encontradas: 5
+Función ejecutada: Estadisticas
+Función ejecutada: Tabla
+Mesas activas encontradas: 48

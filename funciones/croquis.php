@@ -135,10 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             $id_pedido = $_POST['id_pedido'];
 
             $stmt = $conexion->prepare("
-                SELECT id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal 
-                FROM detalles_pedido 
-                WHERE id_pedido = :id_pedido
-            ");
+            SELECT id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal, nota 
+            FROM detalles_pedido 
+            WHERE id_pedido = :id_pedido
+        ");
             $stmt->execute([':id_pedido' => $id_pedido]);
 
             $detalles = [];
@@ -153,6 +153,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
     }
 
     if ($funcion == "CrearPedido") {
+        // DEBUG: Log de datos recibidos
+        error_log("=== DEBUG PEDIDO ===");
+        error_log("ID Cliente recibido: " . ($_POST['id_cliente'] ?? 'NULL'));
+        error_log("Nombre Cliente recibido: " . ($_POST['nombre_cliente'] ?? 'NO ESPECIFICADO'));
+        error_log("ID Mesa: " . $_POST['id_mesa']);
+        error_log("Función: " . $_POST['funcion']);
         try {
             $id_mesa = $_POST['id_mesa'];
             $id_mesero = $_POST['id_mesero'];
@@ -221,17 +227,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             $id_pedido = $conexion->lastInsertId();
 
             foreach ($pedidos as $pedido) {
+                $nota = isset($pedido['nota']) ? $pedido['nota'] : '';
+
                 $stmt = $conexion->prepare("
-                INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal) 
-                VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal)
-            ");
+        INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal, nota) 
+        VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal, :nota)
+    ");
                 $stmt->execute([
                     ':id_pedido' => $id_pedido,
                     ':id_platillo' => $pedido['id_platillo'],
                     ':nombre_platillo' => $pedido['nombre_platillo'],
                     ':cantidad' => $pedido['cantidad'],
                     ':precio_unitario' => $pedido['precio_unitario'],
-                    ':subtotal' => $pedido['subtotal']
+                    ':subtotal' => $pedido['subtotal'],
+                    ':nota' => $nota
                 ]);
             }
 
@@ -290,7 +299,60 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         exit;
     }
 
+    if ($funcion == "ObtenerMeserosPorMesa") {
+        try {
+            $stmt = $conexion->query("
+            SELECT 
+                m.id_mesa,
+                m.numero_mesa,
+                m.capacidad,
+                m.estado,
+                m.ubicacion,
+                p.nombre_mesero,
+                p.nombre_cliente,
+                p.fecha_actualizacion as ultima_actualizacion,
+                p.estado as estado_pedido
+            FROM mesas m
+            LEFT JOIN pedidos p ON m.id_mesa = p.id_mesa 
+                AND p.estado NOT IN ('pagado', 'cancelado', 'archivado')
+                AND p.fecha_creacion = (
+                    SELECT MAX(fecha_creacion) 
+                    FROM pedidos 
+                    WHERE id_mesa = m.id_mesa 
+                    AND estado NOT IN ('pagado', 'cancelado', 'archivado')
+                )
+            WHERE m.fechabaja IS NULL 
+            AND m.estado IN ('ocupada', 'con-pedido')
+            ORDER BY 
+                CASE m.estado 
+                    WHEN 'con-pedido' THEN 1
+                    WHEN 'ocupada' THEN 2
+                    ELSE 3
+                END,
+                m.numero_mesa
+        ");
+
+            $mesas = [];
+            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+                // Solo incluir mesas que tienen un mesero asignado
+                if ($row['nombre_mesero']) {
+                    $mesas[] = $row;
+                }
+            }
+            echo json_encode($mesas, JSON_UNESCAPED_UNICODE);
+        } catch (Exception $e) {
+            echo json_encode(['error' => 'Error al obtener meseros por mesa: ' . $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+
     if ($funcion == "ActualizarPedido") {
+        // DEBUG: Log de datos recibidos
+        error_log("=== DEBUG PEDIDO ===");
+        error_log("ID Cliente recibido: " . ($_POST['id_cliente'] ?? 'NULL'));
+        error_log("Nombre Cliente recibido: " . ($_POST['nombre_cliente'] ?? 'NO ESPECIFICADO'));
+        error_log("ID Mesa: " . $_POST['id_mesa']);
+        error_log("Función: " . $_POST['funcion']);
         try {
             $id_pedido = $_POST['id_pedido'];
             $pedidos_json = $_POST['pedidos'];
@@ -329,17 +391,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             ]);
 
             foreach ($pedidos as $pedido) {
+                $nota = isset($pedido['nota']) ? $pedido['nota'] : '';
+
                 $stmt = $conexion->prepare("
-                INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal) 
-                VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal)
-            ");
+        INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal, nota) 
+        VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal, :nota)
+    ");
                 $stmt->execute([
                     ':id_pedido' => $id_pedido,
                     ':id_platillo' => $pedido['id_platillo'],
                     ':nombre_platillo' => $pedido['nombre_platillo'],
                     ':cantidad' => $pedido['cantidad'],
                     ':precio_unitario' => $pedido['precio_unitario'],
-                    ':subtotal' => $pedido['subtotal']
+                    ':subtotal' => $pedido['subtotal'],
+                    ':nota' => $nota
                 ]);
             }
 
@@ -535,14 +600,67 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
         exit;
     }
 
+    if ($funcion == "ObtenerDatosTicket") {
+        try {
+            $id_pedido = $_POST['id_pedido'];
+
+            // Obtener información completa del pedido
+            $stmt = $conexion->prepare("
+            SELECT 
+                p.id_pedido,
+                p.fecha_creacion,
+                p.total,
+                p.nombre_mesero,
+                p.nombre_cliente,
+                m.numero_mesa,
+                m.ubicacion
+            FROM pedidos p
+            INNER JOIN mesas m ON p.id_mesa = m.id_mesa
+            WHERE p.id_pedido = :id_pedido
+        ");
+            $stmt->execute([':id_pedido' => $id_pedido]);
+            $pedido = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$pedido) {
+                echo json_encode(['error' => 'Pedido no encontrado'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // Obtener detalles del pedido
+            $stmt = $conexion->prepare("
+            SELECT 
+                nombre_platillo,
+                cantidad,
+                precio_unitario,
+                subtotal
+            FROM detalles_pedido 
+            WHERE id_pedido = :id_pedido
+            ORDER BY id_detalle
+        ");
+            $stmt->execute([':id_pedido' => $id_pedido]);
+            $detalles = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            echo json_encode([
+                'success' => true,
+                'pedido' => $pedido,
+                'detalles' => $detalles
+            ], JSON_UNESCAPED_UNICODE);
+
+        } catch (Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Error al obtener datos del ticket: ' . $e->getMessage()
+            ], JSON_UNESCAPED_UNICODE);
+        }
+        exit;
+    }
+
     if ($funcion == "AgregarProductosPedido") {
         try {
             $id_pedido = $_POST['id_pedido'];
             $pedidos_json = $_POST['pedidos'];
 
-            $id_cliente = isset($_POST['id_cliente']) && !empty($_POST['id_cliente']) ? $_POST['id_cliente'] : null;
-            $nombre_cliente = isset($_POST['nombre_cliente']) ? $_POST['nombre_cliente'] : 'Cliente Temporal';
-
+            // NO usar los datos de cliente enviados, mantener los originales del pedido
             $nuevosPedidos = json_decode($pedidos_json, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 throw new Exception('Error en formato de pedidos: ' . json_last_error_msg());
@@ -550,19 +668,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
 
             $conexion->beginTransaction();
 
-            // Obtener el total actual
-            $stmt = $conexion->prepare("SELECT total FROM pedidos WHERE id_pedido = :id_pedido");
+            // Obtener el pedido actual para mantener el cliente original
+            $stmt = $conexion->prepare("SELECT total, id_cliente, nombre_cliente FROM pedidos WHERE id_pedido = :id_pedido");
             $stmt->execute([':id_pedido' => $id_pedido]);
             $pedidoActual = $stmt->fetch(PDO::FETCH_ASSOC);
+
             $totalActual = $pedidoActual['total'];
+            $id_cliente_original = $pedidoActual['id_cliente'];
+            $nombre_cliente_original = $pedidoActual['nombre_cliente'];
 
             $nuevoTotal = $totalActual;
 
             // SOLO AGREGAR LOS NUEVOS PRODUCTOS, NO ACTUALIZAR LOS EXISTENTES
             foreach ($nuevosPedidos as $pedido) {
+                $nota = isset($pedido['nota']) ? $pedido['nota'] : '';
+
                 $stmt = $conexion->prepare("
-                INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal) 
-                VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal)
+                INSERT INTO detalles_pedido (id_pedido, id_platillo, nombre_platillo, cantidad, precio_unitario, subtotal, nota) 
+                VALUES (:id_pedido, :id_platillo, :nombre_platillo, :cantidad, :precio_unitario, :subtotal, :nota)
             ");
                 $stmt->execute([
                     ':id_pedido' => $id_pedido,
@@ -570,25 +693,23 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
                     ':nombre_platillo' => $pedido['nombre_platillo'],
                     ':cantidad' => $pedido['cantidad'],
                     ':precio_unitario' => $pedido['precio_unitario'],
-                    ':subtotal' => $pedido['subtotal']
+                    ':subtotal' => $pedido['subtotal'],
+                    ':nota' => $nota
                 ]);
 
+                // Sumar al total solo los nuevos productos
                 $nuevoTotal += $pedido['subtotal'];
             }
 
-            // Actualizar el total del pedido y la información del cliente
+            // Actualizar el total del pedido pero MANTENER EL CLIENTE ORIGINAL
             $stmt = $conexion->prepare("
             UPDATE pedidos 
             SET total = :total, 
-                id_cliente = :id_cliente,
-                nombre_cliente = :nombre_cliente,
                 fecha_actualizacion = CURRENT_TIMESTAMP 
             WHERE id_pedido = :id_pedido
         ");
             $stmt->execute([
                 ':total' => $nuevoTotal,
-                ':id_cliente' => $id_cliente,
-                ':nombre_cliente' => $nombre_cliente,
                 ':id_pedido' => $id_pedido
             ]);
 
@@ -596,8 +717,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             echo json_encode([
                 'success' => true,
                 'id_pedido' => $id_pedido,
-                'id_cliente' => $id_cliente,
-                'nombre_cliente' => $nombre_cliente,
+                'id_cliente' => $id_cliente_original, // Devolver el cliente original
+                'nombre_cliente' => $nombre_cliente_original, // Devolver el cliente original
                 'message' => 'Productos agregados al pedido correctamente'
             ], JSON_UNESCAPED_UNICODE);
 

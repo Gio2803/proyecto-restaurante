@@ -1,504 +1,324 @@
-<!DOCTYPE html>
-<html lang="es">
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-<head>
-    <style>
-        :root {
-            --primary-color: #67C090;
-            --secondary-color: #DDF4E7;
-            --danger-color: #124170;
-            --light-color: #26667F;
-            --sidebar-width: 220px;
-            /* Más pequeño */
-            --sidebar-collapsed: 60px;
-            /* Más compacto */
-        }
+require_once 'check_session.php';
+require_once 'conexion.php';
 
-        /* Estilos para el sidebar compacto */
-        .sidebar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            height: 100vh;
-            width: var(--sidebar-width);
-            background-color: var(--danger-color);
-            transition: all 0.3s ease;
-            z-index: 1000;
-            overflow-y: auto;
-            box-shadow: 3px 0 10px rgba(0, 0, 0, 0.1);
-        }
+// VERIFICACIÓN TEMPORAL SIMPLIFICADA - PERMITIR ACCESO MIENTRAS SE CONFIGURA
+$pagina_actual = basename($_SERVER['PHP_SELF']);
 
-        .sidebar.collapsed {
-            width: var(--sidebar-collapsed);
-        }
+try {
+    // Primero verificar si las tablas de permisos existen
+    $stmt = $conexion->prepare("
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = 'permisos_menu'
+        ) as tabla_existe
+    ");
+    $stmt->execute();
+    $tabla_existe = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        .sidebar-header {
-            padding: 15px 10px;
-            /* Más compacto */
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            text-align: center;
-        }
+    if ($tabla_existe['tabla_existe'] == 't' || $tabla_existe['tabla_existe'] === true) {
+        // La tabla existe, verificar permisos
+        $stmt = $conexion->prepare("
+            SELECT COUNT(*) as tiene_permiso 
+            FROM permisos_menu pm 
+            INNER JOIN menu_items mi ON pm.menu_item_id = mi.id 
+            WHERE pm.id_usuario = ? AND mi.url = ? AND pm.activo = true
+        ");
+        $stmt->execute([$_SESSION['id_usuario'], $pagina_actual]);
+        $permiso = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        .sidebar-brand {
-            color: white;
-            font-size: 1.1rem;
-            /* Más pequeño */
-            font-weight: bold;
-            text-decoration: none;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .sidebar-brand span {
-            transition: opacity 0.3s ease;
-            font-size: 0.9rem;
-        }
-
-        .sidebar.collapsed .sidebar-brand span {
-            opacity: 0;
-            display: none;
-        }
-
-        .sidebar-nav {
-            padding: 10px 0;
-            /* Más compacto */
-        }
-
-        .nav-item {
-            margin-bottom: 2px;
-            /* Más compacto */
-        }
-
-        .nav-link {
-            color: white !important;
-            padding: 10px 15px;
-            /* Más compacto */
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: all 0.3s ease;
-            border-left: 3px solid transparent;
-            font-size: 0.9rem;
-            /* Texto más pequeño */
-        }
-
-        .nav-link:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: var(--primary-color) !important;
-            border-left-color: var(--primary-color);
-        }
-
-        .nav-link.active {
-            background-color: rgba(103, 192, 144, 0.2);
-            color: var(--primary-color) !important;
-            border-left-color: var(--primary-color);
-        }
-
-        .nav-link i {
-            font-size: 1.1rem;
-            /* Iconos más pequeños */
-            width: 20px;
-            text-align: center;
-        }
-
-        .nav-link span {
-            transition: opacity 0.3s ease;
-            white-space: nowrap;
-        }
-
-        .sidebar.collapsed .nav-link span {
-            opacity: 0;
-            display: none;
-        }
-
-        .dropdown-menu {
-            background-color: var(--light-color);
-            border: none;
-            border-radius: 0 8px 8px 0;
-            margin-left: 8px;
-            min-width: 180px;
-            /* Más compacto */
-        }
-
-        .dropdown-item {
-            color: white !important;
-            padding: 8px 12px;
-            /* Más compacto */
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.85rem;
-            /* Texto más pequeño */
-        }
-
-        .dropdown-item:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-            color: var(--primary-color) !important;
-        }
-
-        .dropdown-item.text-danger {
-            color: #dc3545 !important;
-        }
-
-        .dropdown-item.text-danger:hover {
-            color: #bd2130 !important;
-            background-color: rgba(220, 53, 69, 0.1);
-        }
-
-        .dropdown-toggle::after {
-            transition: transform 0.3s ease;
-            font-size: 0.8rem;
-        }
-
-        .sidebar.collapsed .dropdown-toggle::after {
-            display: none;
-        }
-
-        /* Botón toggle más pequeño */
-        .sidebar-toggle {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 1001;
-            background: var(--primary-color);
-            border: none;
-            border-radius: 4px;
-            color: white;
-            padding: 6px 10px;
-            cursor: pointer;
-            display: none;
-            font-size: 0.9rem;
-        }
-
-        /* Contenido principal con más espacio */
-        .main-content {
-            margin-left: var(--sidebar-width);
-            transition: margin-left 0.3s ease;
-            min-height: 100vh;
-            background-color: var(--secondary-color);
-            padding: 15px;
-        }
-
-        .main-content.expanded {
-            margin-left: var(--sidebar-collapsed);
-        }
-
-        /* Responsive para móviles */
-        @media (max-width: 992px) {
-            .sidebar {
-                transform: translateX(-100%);
-                width: var(--sidebar-width);
-            }
-
-            .sidebar.mobile-open {
-                transform: translateX(0);
-            }
-
-            .main-content {
-                margin-left: 0;
-                padding: 10px;
-            }
-
-            .main-content.mobile-expanded {
-                margin-left: 0;
-            }
-
-            .sidebar-toggle {
-                display: block;
-            }
-
-            .sidebar.collapsed {
-                transform: translateX(-100%);
-            }
-
-            .sidebar.collapsed.mobile-open {
-                transform: translateX(0);
-                width: var(--sidebar-width);
+        if (!$permiso || $permiso['tiene_permiso'] == 0) {
+            // Si no tiene permiso específico, verificar si es administrador
+            if ($_SESSION['SISTEMA']['rol'] != 1) {
+                header('Location: acceso_denegado.php');
+                exit;
             }
         }
+    }
+} catch (Exception $e) {
+    error_log("Error en verificación de permisos: " . $e->getMessage());
+}
+?>
 
-        /* Scrollbar personalizado más delgado */
-        .sidebar::-webkit-scrollbar {
-            width: 3px;
-        }
+<!-- Sidebar con permisos -->
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <a href="croquis.php" class="sidebar-brand">
+            <i class="bi bi-house-door-fill"></i>
+            <span>Restaurante</span>
+        </a>
+    </div>
 
-        .sidebar::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-        }
+    <nav class="sidebar-nav">
+        <ul class="navbar-nav">
+            <?php
+            // Cargar menú con permisos para el usuario actual (excluyendo "Mi Cuenta")
+            try {
+                $stmt = $conexion->prepare("
+                    SELECT mi.id, mi.nombre, mi.url, mi.icono, mi.parent_id 
+                    FROM menu_items mi
+                    INNER JOIN permisos_menu pm ON mi.id = pm.menu_item_id
+                    WHERE pm.id_usuario = ? AND pm.activo = true AND mi.activo = true 
+                    AND mi.nombre != 'Mi Cuenta'  -- Excluir Mi Cuenta del menú principal
+                    ORDER BY mi.orden, mi.nombre
+                ");
+                $stmt->execute([$_SESSION['id_usuario']]);
+                $menu_permitido = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        .sidebar::-webkit-scrollbar-thumb {
-            background: var(--primary-color);
-            border-radius: 5px;
-        }
+                // Si no hay menú configurado, mostrar menú por defecto
+                if (empty($menu_permitido)) {
+                    ?>
+                    <!-- Menú por defecto cuando no hay permisos configurados -->
+                    <li class="nav-item">
+                        <a class="nav-link fw-bold <?php echo ($pagina_actual == 'croquis.php') ? 'active' : ''; ?>"
+                            href="croquis.php">
+                            <i class="bi bi-geo-alt-fill"></i>
+                            <span>Croquis</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-bold <?php echo ($pagina_actual == 'clientes.php') ? 'active' : ''; ?>"
+                            href="clientes.php">
+                            <i class="bi bi-people-fill"></i>
+                            <span>Clientes</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link fw-bold <?php echo ($pagina_actual == 'mesas.php') ? 'active' : ''; ?>"
+                            href="mesas.php">
+                            <i class="bi bi-table"></i>
+                            <span>Mesas</span>
+                        </a>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-box-seam-fill"></i>
+                            <span>Productos</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item <?php echo ($pagina_actual == 'menu_platillos.php') ? 'active' : ''; ?>"
+                                    href="menu_platillos.php">
+                                    <i class="bi bi-egg-fried"></i>
+                                    <span>Menu/Platillos/Bebidas</span>
+                                </a></li>
+                            <li><a class="dropdown-item <?php echo ($pagina_actual == 'categorias.php') ? 'active' : ''; ?>"
+                                    href="categorias.php">
+                                    <i class="bi bi-tags"></i>
+                                    <span>Categorías</span>
+                                </a></li>
+                            <li><a class="dropdown-item <?php echo ($pagina_actual == 'unidades_medida.php') ? 'active' : ''; ?>"
+                                    href="unidades_medida.php">
+                                    <i class="bi bi-rulers"></i>
+                                    <span>Unidades de Medida</span>
+                                </a></li>
+                        </ul>
+                    </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            <i class="bi bi-cash-coin"></i>
+                            <span>Cocina y Barra</span>
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item <?php echo ($pagina_actual == 'cocina.php') ? 'active' : ''; ?>"
+                                    href="cocina.php">
+                                    <i class="bi bi-fire"></i>
+                                    <span>Cocina</span>
+                                </a></li>
+                            <li><a class="dropdown-item <?php echo ($pagina_actual == 'barra.php') ? 'active' : ''; ?>"
+                                    href="barra.php">
+                                    <i class="bi bi-cup-straw"></i>
+                                    <span>Barra</span>
+                                </a></li>
+                        </ul>
+                    </li>
+                    <?php
+                } else {
+                    // Organizar en estructura jerárquica
+                    $menu_estructura = [];
+                    foreach ($menu_permitido as $item) {
+                        if ($item['parent_id'] === null) {
+                            $menu_estructura[$item['id']] = $item;
+                            $menu_estructura[$item['id']]['subitems'] = [];
+                        }
+                    }
 
-        body {
-            padding-top: 0;
-            margin: 0;
-            overflow-x: hidden;
-        }
+                    foreach ($menu_permitido as $item) {
+                        if ($item['parent_id'] !== null && isset($menu_estructura[$item['parent_id']])) {
+                            $menu_estructura[$item['parent_id']]['subitems'][] = $item;
+                        }
+                    }
 
-        /* Estilo para el botón de toggle manual en desktop */
-        .sidebar-collapse-btn {
-            position: absolute;
-            top: 50%;
-            right: -12px;
-            transform: translateY(-50%);
-            background: var(--primary-color);
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
-            z-index: 1002;
-        }
-    </style>
-</head>
-
-<body>
-    <!-- Botón toggle para móvil -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="bi bi-list"></i>
-    </button>
-
-    <!-- Sidebar -->
-    <!-- Sidebar -->
-    <!-- Sidebar -->
-    <div class="sidebar" id="sidebar">
-        <div class="sidebar-header">
-            <a href="croquis.php" class="sidebar-brand">
-                <i class="bi bi-house-door-fill"></i>
-                <span></span>
-            </a>
-        </div>
-
-        <nav class="sidebar-nav">
-            <ul class="navbar-nav">
+                    // Mostrar elementos del menú con permisos
+                    foreach ($menu_estructura as $item):
+                        if (empty($item['subitems'])): ?>
+                            <li class="nav-item">
+                                <a class="nav-link fw-bold <?php echo ($pagina_actual == $item['url']) ? 'active' : ''; ?>"
+                                    href="<?php echo $item['url']; ?>">
+                                    <i class="<?php echo $item['icono']; ?>"></i>
+                                    <span><?php echo $item['nombre']; ?></span>
+                                </a>
+                            </li>
+                        <?php else: ?>
+                            <li class="nav-item dropdown">
+                                <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                                    <i class="<?php echo $item['icono']; ?>"></i>
+                                    <span><?php echo $item['nombre']; ?></span>
+                                </a>
+                                <ul class="dropdown-menu">
+                                    <?php foreach ($item['subitems'] as $subitem): ?>
+                                        <li>
+                                            <a class="dropdown-item <?php echo ($pagina_actual == $subitem['url']) ? 'active' : ''; ?>"
+                                                href="<?php echo $subitem['url']; ?>">
+                                                <i class="<?php echo $subitem['icono']; ?>"></i>
+                                                <span><?php echo $subitem['nombre']; ?></span>
+                                            </a>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </li>
+                        <?php endif;
+                    endforeach;
+                }
+            } catch (Exception $e) {
+                // Si hay error, mostrar menú por defecto
+                error_log("Error cargando menú: " . $e->getMessage());
+                ?>
+                <!-- Menú por defecto en caso de error -->
                 <li class="nav-item">
-                    <a class="nav-link fw-bold" href="croquis.php">
+                    <a class="nav-link fw-bold <?php echo ($pagina_actual == 'croquis.php') ? 'active' : ''; ?>"
+                        href="croquis.php">
                         <i class="bi bi-geo-alt-fill"></i>
                         <span>Croquis</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-bold" href="clientes.php">
+                    <a class="nav-link fw-bold <?php echo ($pagina_actual == 'clientes.php') ? 'active' : ''; ?>"
+                        href="clientes.php">
                         <i class="bi bi-people-fill"></i>
                         <span>Clientes</span>
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link fw-bold" href="mesas.php">
-                        <i class="bi bi-people-fill"></i>
+                    <a class="nav-link fw-bold <?php echo ($pagina_actual == 'mesas.php') ? 'active' : ''; ?>"
+                        href="mesas.php">
+                        <i class="bi bi-table"></i>
                         <span>Mesas</span>
                     </a>
                 </li>
-
-                <!-- MENÚ DE PRODUCTOS -->
-                <li class="nav-item dropdown">
-                    <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-box-seam-fill"></i>
-                        <span>Productos</span>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="menu_platillos.php">
-                                <i class="bi bi-circle"></i>
-                                <span>Menu/Platillos/Bebidas</span>
-                            </a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item" href="categorias.php">
-                                <i class="bi bi-tags"></i>
-                                <span>Categorías</span>
-                            </a></li>
-                        <li><a class="dropdown-item" href="unidades_medida.php">
-                                <i class="bi bi-rulers"></i>
-                                <span>Unidades de Medida</span>
-                            </a></li>
-                    </ul>
-                </li>
-
-                <!-- COCINA Y BARRA (ACTIVO) -->
-                <li class="nav-item dropdown">
-                    <a class="nav-link fw-bold active dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-cash-coin"></i>
-                        <span>Cocina y barra</span>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="cocina.php">
-                                <i class="bi bi-credit-card"></i>
-                                <span>Cocina</span>
-                            </a></li>
-                    </ul>
-                </li>
-
-                <li class="nav-item dropdown">
-                    <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-cash-coin"></i>
-                        <span>Ventas</span>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="estadisticas.php">
-                                <i class="bi bi-credit-card"></i>
-                                <span>Estadisticas de Ventas</span>
-                            </a></li>
-                        <li><a class="dropdown-item" href="historial_ventas.php">
-                                <i class="bi bi-receipt"></i>
-                                <span>Historial de Ventas</span>
-                            </a></li>
-                    </ul>
-                </li>
-            </ul>
-
-            <ul class="navbar-nav mt-auto">
-                <li class="nav-item dropdown">
-                    <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="bi bi-person-circle"></i>
-                        <span>Mi Cuenta</span>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="usuarios.php">
-                                <i class="bi bi-people"></i>
-                                <span>Usuarios</span>
-                            </a></li>
-                        <li><a class="dropdown-item" href="roles.php">
-                                <i class="bi bi-shield-lock"></i>
-                                <span>Roles</span>
-                            </a></li>
-                        <li>
-                            <hr class="dropdown-divider">
-                        </li>
-                        <li><a class="dropdown-item text-danger" href="#" onclick="confirmLogout()">
-                                <i class="bi bi-box-arrow-right"></i>
-                                <span>Cerrar sesión</span>
-                            </a></li>
-                    </ul>
-                </li>
-            </ul>
-        </nav>
-    </div>
-    <!-- Contenido principal -->
-    <div class="main-content" id="mainContent">
-        <!-- El contenido de cada página se insertará aquí -->
-        <?php
-        // Detectar la página actual y mostrar contenido dinámicamente
-        $current_page = basename($_SERVER['PHP_SELF']);
-        if ($current_page != 'menu.php') {
-            // El contenido se carga desde la página específica
-        }
-        ?>
-    </div>
-
-    <script>
-        // Toggle sidebar en desktop
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            const collapseIcon = document.getElementById('collapseIcon');
-
-            sidebar.classList.toggle('collapsed');
-            mainContent.classList.toggle('expanded');
-
-            // Cambiar icono
-            if (sidebar.classList.contains('collapsed')) {
-                collapseIcon.className = 'bi bi-chevron-right';
-            } else {
-                collapseIcon.className = 'bi bi-chevron-left';
+                <?php
             }
-        }
+            ?>
+        </ul>
 
-        // Toggle sidebar en móvil
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
+        <!-- Menú de cuenta (SIEMPRE VISIBLE - SOLO UNA VEZ) -->
+        <ul class="navbar-nav mt-auto">
+            <li class="nav-item dropdown">
+                <a class="nav-link fw-bold dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                    <i class="bi bi-person-circle"></i>
+                    <span>Mi Cuenta</span>
+                </a>
+                <ul class="dropdown-menu">
+                    <?php
+                    // Cargar subitems de "Mi Cuenta" desde la base de datos con permisos
+                    try {
+                        // Primero obtener el ID de "Mi Cuenta"
+                        $stmt = $conexion->prepare("
+                            SELECT id FROM menu_items 
+                            WHERE nombre = 'Mi Cuenta' AND activo = true 
+                            LIMIT 1
+                        ");
+                        $stmt->execute();
+                        $mi_cuenta = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            sidebar.classList.toggle('mobile-open');
-            mainContent.classList.toggle('mobile-expanded');
-        }
+                        if ($mi_cuenta) {
+                            $id_mi_cuenta = $mi_cuenta['id'];
 
-        // Cerrar sidebar en móvil al hacer clic fuera
-        function closeMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
+                            // Obtener los subitems con permisos (excepto Cerrar Sesión)
+                            $stmt = $conexion->prepare("
+                                SELECT mi.nombre, mi.url, mi.icono 
+                                FROM menu_items mi
+                                INNER JOIN permisos_menu pm ON mi.id = pm.menu_item_id
+                                WHERE pm.id_usuario = ? AND pm.activo = true 
+                                AND mi.activo = true AND mi.parent_id = ?
+                                AND mi.nombre != 'Cerrar Sesión'
+                                ORDER BY mi.orden
+                            ");
+                            $stmt->execute([$_SESSION['id_usuario'], $id_mi_cuenta]);
+                            $subitems_cuenta = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-            if (window.innerWidth <= 992) {
-                sidebar.classList.remove('mobile-open');
-                mainContent.classList.remove('mobile-expanded');
-            }
-        }
+                            // Mostrar subitems con permisos
+                            foreach ($subitems_cuenta as $subitem): ?>
+                                <li>
+                                    <a class="dropdown-item <?php echo ($pagina_actual == $subitem['url']) ? 'active' : ''; ?>"
+                                        href="<?php echo $subitem['url']; ?>">
+                                        <i class="<?php echo $subitem['icono']; ?>"></i>
+                                        <span><?php echo $subitem['nombre']; ?></span>
+                                    </a>
+                                </li>
+                            <?php endforeach;
 
-        // Inicialización
-        document.addEventListener('DOMContentLoaded', function () {
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const mainContent = document.getElementById('mainContent');
+                            // Si es administrador (rol = 1), mostrar "Permisos Menú" aunque no tenga permiso específico
+                            if ($_SESSION['SISTEMA']['rol'] == 1): ?>
+                                <li>
+                                    <a class="dropdown-item <?php echo ($pagina_actual == 'permisos_menu.php') ? 'active' : ''; ?>"
+                                        href="permisos_menu.php">
+                                        <i class="bi bi-shield-check"></i>
+                                        <span>Permisos Menú</span>
+                                    </a>
+                                </li>
+                            <?php endif;
+                        }
+                    } catch (Exception $e) {
+                        error_log("Error cargando subitems de Mi Cuenta: " . $e->getMessage());
+                        // Si hay error y es administrador, mostrar Permisos Menú
+                        if ($_SESSION['SISTEMA']['rol'] == 1): ?>
+                            <li>
+                                <a class="dropdown-item <?php echo ($pagina_actual == 'permisos_menu.php') ? 'active' : ''; ?>"
+                                    href="permisos_menu.php">
+                                    <i class="bi bi-shield-check"></i>
+                                    <span>Permisos Menú</span>
+                                </a>
+                            </li>
+                        <?php endif;
+                    } ?>
 
-            // Event listeners
-            sidebarToggle.addEventListener('click', toggleMobileSidebar);
+                    <!-- Cerrar Sesión (SIEMPRE VISIBLE) -->
+                    <li>
+                        <hr class="dropdown-divider">
+                    </li>
+                    <li>
+                        <a class="dropdown-item text-danger" href="#" onclick="confirmLogout()">
+                            <i class="bi bi-box-arrow-right"></i>
+                            <span>Cerrar sesión</span>
+                        </a>
+                    </li>
+                </ul>
+            </li>
+        </ul>
+    </nav>
+</div>
 
-            // Cerrar sidebar al hacer clic en el contenido principal en móvil
-            mainContent.addEventListener('click', closeMobileSidebar);
-
-            // Ajustar según el tamaño de pantalla
-            function handleResize() {
-                const sidebar = document.getElementById('sidebar');
-                if (window.innerWidth > 992) {
-                    sidebar.classList.remove('mobile-open');
-                    mainContent.classList.remove('mobile-expanded');
-                } else {
-                    sidebar.classList.remove('collapsed');
-                    mainContent.classList.remove('expanded');
-                }
-            }
-
-            window.addEventListener('resize', handleResize);
-
-            // Activar elemento del menú según la página actual
-            function setActiveMenu() {
-                const currentPage = window.location.pathname.split('/').pop();
-                const navLinks = document.querySelectorAll('.nav-link');
-
-                navLinks.forEach(link => {
-                    const linkHref = link.getAttribute('href');
-                    if (linkHref === currentPage) {
-                        link.classList.add('active');
-                    } else {
-                        link.classList.remove('active');
-                    }
-                });
-            }
-
-            setActiveMenu();
-
-            // Auto-colapsar en móvil
-            if (window.innerWidth <= 992) {
-                closeMobileSidebar();
+<!-- SOLO la función confirmLogout aquí -->
+<script>
+    function confirmLogout() {
+        Swal.fire({
+            title: '¿Cerrar sesión?',
+            text: "¿Estás seguro de que quieres salir del sistema?",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#3085d6',
+            cancelButtonColor: '#d33',
+            confirmButtonText: 'Sí, cerrar sesión',
+            cancelButtonText: 'Cancelar'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                window.location.href = 'logout.php';
             }
         });
-
-        function confirmLogout() {
-            Swal.fire({
-                title: '¿Cerrar sesión?',
-                text: "¿Estás seguro de que quieres salir del sistema?",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Sí, cerrar sesión',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = 'logout.php';
-                }
-            });
-        }
-    </script>
-</body>
-
-</html>
+    }
+</script>
