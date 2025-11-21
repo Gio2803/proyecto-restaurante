@@ -309,7 +309,8 @@ function obtenerHistorial($id_usuario, $limite = 50)
         $sql = "SELECT 
                 cc.*,
                 u.nombre as nombre_usuario,
-                TO_CHAR(cc.fecha_apertura, 'DD/MM/YYYY HH24:MI') as fecha_apertura_formatted
+                TO_CHAR(cc.fecha_apertura, 'DD/MM/YYYY HH24:MI') as fecha_apertura_formatted,
+                TO_CHAR(cc.fecha_cierre, 'DD/MM/YYYY HH24:MI') as fecha_cierre_formatted
                 FROM corte_caja cc
                 JOIN usuarios u ON cc.id_usuario = u.id_usuario
                 WHERE cc.id_usuario = ?

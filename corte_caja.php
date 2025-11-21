@@ -619,7 +619,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
 
             <div class="row">
                 <!-- Botones de acción -->
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6 mb-3">
                     <?php if (!$caja_abierta): ?>
                         <button class="btn btn-custom w-100" data-bs-toggle="modal" data-bs-target="#modalApertura">
                             <i class="bi bi-unlock-fill"></i> ABRIR CAJA
@@ -631,12 +631,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                         </button>
                     <?php endif; ?>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <button class="btn btn-outline-primary w-100" onclick="cargarResumen()">
-                        <i class="bi bi-arrow-clockwise"></i> ACTUALIZAR
-                    </button>
-                </div>
-                <div class="col-md-4 mb-3">
+                <div class="col-md-6 mb-3">
                     <button class="btn btn-outline-secondary w-100" data-bs-toggle="modal"
                         data-bs-target="#modalHistorial">
                         <i class="bi bi-clock-history"></i> HISTORIAL
@@ -1056,38 +1051,16 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                         // Obtener datos para el ticket después de cerrar
                         obtenerDatosTicket()
                             .then(ticketData => {
-                                // Guardar datos para impresión
-                                lastTicketData = ticketData;
-                                lastEfectivoFinal = efectivo_final;
+                                // Cerrar el modal primero
+                                $('#modalCierreCaja').modal('hide');
 
-                                generarTicket(ticketData, efectivo_final, observaciones);
-
-                                Swal.fire({
-                                    title: '¡Caja Cerrada!',
-                                    text: data.message,
-                                    icon: 'success',
-                                    confirmButtonText: 'Aceptar',
-                                    showCancelButton: true,
-                                    cancelButtonText: 'Imprimir Ticket',
-                                    confirmButtonColor: '#67C090',
-                                    cancelButtonColor: '#007bff'
-                                }).then((result) => {
-                                    if (result.isDismissed) {
-                                        setTimeout(() => imprimirTicket(), 500);
-                                    }
-                                    location.reload();
-                                });
+                                // Generar y mostrar ticket automáticamente
+                                generarTicketAutomatico(ticketData, efectivo_final, observaciones);
                             })
                             .catch(error => {
                                 console.error('Error obteniendo datos del ticket:', error);
-                                Swal.fire({
-                                    title: '¡Caja Cerrada!',
-                                    text: data.message + '\nPero hubo un error al generar el ticket: ' + error,
-                                    icon: 'warning',
-                                    confirmButtonText: 'Aceptar'
-                                }).then(() => {
-                                    location.reload();
-                                });
+                                // Aún así recargar la página
+                                location.reload();
                             });
                     } else {
                         Swal.fire('Error', data.message, 'error');
@@ -1098,33 +1071,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 }
             });
         }
-
-        // Función auxiliar para obtener datos del ticket
-        function obtenerDatosTicket() {
-            return new Promise((resolve, reject) => {
-                $.ajax({
-                    url: 'funciones/corte_caja.php',
-                    type: 'POST',
-                    data: {
-                        funcion: 'ObtenerDatosTicket'
-                    },
-                    dataType: 'json',
-                    success: function (response) {
-                        if (response.error) {
-                            reject(response.error);
-                        } else {
-                            resolve(response);
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        reject('Error de conexión: ' + error);
-                    }
-                });
-            });
-        }
-
-        // Función para generar el ticket
-        function generarTicket(ticketData, efectivoFinal) {
+        function generarTicketAutomatico(ticketData, efectivoFinal, observaciones) {
             const fechaHora = new Date().toLocaleString('es-MX');
             const fechaApertura = ticketData.fecha_apertura;
             const montoInicial = parseFloat(ticketData.monto_inicial).toFixed(2);
@@ -1187,18 +1134,18 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             if (ticketData.meseros && ticketData.meseros.length > 0) {
                 ticketData.meseros.forEach((mesero, index) => {
                     ticketHTML += `
-            <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
-                <div class="row">
-                    <div class="col-7">
-                        <strong>${mesero.nombre_mesero}</strong><br>
-                        <small>${mesero.total_pedidos} pedido(s)</small>
-                    </div>
-                    <div class="col-5 text-end">
-                        $${parseFloat(mesero.total).toFixed(2)}
+                <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
+                    <div class="row">
+                        <div class="col-7">
+                            <strong>${mesero.nombre_mesero}</strong><br>
+                            <small>${mesero.total_pedidos} pedido(s)</small>
+                        </div>
+                        <div class="col-5 text-end">
+                            $${parseFloat(mesero.total).toFixed(2)}
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
+            `;
                 });
             } else {
                 ticketHTML += `
@@ -1219,46 +1166,168 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             
             <div class="ticket-footer text-center">
                 <p><strong>Usuario:</strong> ${ticketData.nombre_usuario}</p>
-                <p>${ticketData.observaciones || 'Sin observaciones'}</p>
+                <p>${observaciones || 'Sin observaciones'}</p>
                 <hr>
                 <p><small>*** CORTE DE CAJA GENERADO AUTOMÁTICAMENTE ***</small></p>
             </div>
         </div>
         
-        <div class="text-center mt-3 no-print">
-            <button class="btn btn-primary me-2" onclick="imprimirTicket()">
-                <i class="bi bi-printer"></i> Imprimir Ticket
-            </button>
-            <button class="btn btn-success" onclick="descargarPDF()">
-                <i class="bi bi-download"></i> Descargar PDF
-            </button>
+        <div class="text-center mt-3">
+            <p class="text-info"><i class="bi bi-info-circle"></i> El ticket se imprimirá automáticamente</p>
         </div>
     `;
 
             // Mostrar ticket en un modal
             Swal.fire({
-                title: 'Ticket de Cierre de Caja',
+                title: 'Caja Cerrada - Imprimiendo Ticket',
                 html: ticketHTML,
                 width: 600,
-                showCloseButton: true,
+                showCloseButton: false,
                 showConfirmButton: false,
+                allowOutsideClick: false,
                 customClass: {
                     popup: 'ticket-popup'
+                },
+                didOpen: () => {
+                    // Imprimir automáticamente después de mostrar el modal
+                    setTimeout(() => {
+                        imprimirTicketAutomatico(ticketData, efectivoFinal, observaciones);
+                    }, 1000);
                 }
             });
         }
 
-        // Función para imprimir el ticket
-        function imprimirTicket() {
-            if (!lastTicketData || !lastEfectivoFinal) {
-                Swal.fire('Error', 'No hay datos del ticket disponibles', 'error');
-                return;
-            }
+        // Cargar historial - FUNCIÓN CORREGIDA
+        $('#modalHistorial').on('show.bs.modal', function () {
+            $.ajax({
+                url: 'funciones/corte_caja.php',
+                type: 'POST',
+                data: {
+                    funcion: 'ObtenerHistorial'
+                },
+                dataType: 'json',
+                success: function (data) {
+                    // Verificar si hay error
+                    if (data.error) {
+                        $('#historial-cortes').html(`
+                    <div class="alert alert-danger">
+                        <h5>Error al cargar el historial</h5>
+                        <p>${data.error}</p>
+                    </div>
+                `);
+                        return;
+                    }
 
+                    // Si no hay datos (array vacío)
+                    if (!data || data.length === 0) {
+                        $('#historial-cortes').html(`
+                    <div class="text-center py-4">
+                        <i class="bi bi-inbox display-1 text-muted"></i>
+                        <h5 class="text-muted mt-3">No hay cortes registrados</h5>
+                        <p class="text-muted">Aún no se han realizado cortes de caja.</p>
+                    </div>
+                `);
+                        return;
+                    }
+
+                    mostrarHistorial(data);
+                },
+                error: function (xhr, status, error) {
+                    console.error('Error AJAX:', error);
+                    $('#historial-cortes').html(`
+                <div class="alert alert-danger">
+                    <h5>Error de conexión</h5>
+                    <p>No se pudo cargar el historial. Error: ${error}</p>
+                    <small>Verifique la conexión e intente nuevamente.</small>
+                </div>
+            `);
+                }
+            });
+        });
+
+        // Mostrar historial - FUNCIÓN CORREGIDA
+        function mostrarHistorial(cortes) {
+            let html = `
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha Apertura</th>
+                        <th>Fecha Cierre</th>
+                        <th>Usuario</th>
+                        <th>Monto Inicial</th>
+                        <th>Ventas</th>
+                        <th>Efectivo Final</th>
+                        <th>Diferencia</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+            cortes.forEach(corte => {
+                const montoInicial = parseFloat(corte.monto_inicial || 0);
+                const ventasTotales = parseFloat(corte.ventas_totales || 0);
+                const efectivoFinal = parseFloat(corte.monto_final || 0);
+                const totalEsperado = montoInicial + ventasTotales;
+                const diferencia = efectivoFinal - totalEsperado;
+
+                // Determinar clase para la diferencia
+                let diferenciaClass = 'text-success';
+                if (diferencia < 0) {
+                    diferenciaClass = 'text-danger';
+                } else if (diferencia === 0) {
+                    diferenciaClass = 'text-muted';
+                }
+
+                html += `
+            <tr>
+                <td>${corte.fecha_apertura_formatted || 'N/A'}</td>
+                <td>${corte.fecha_cierre_formatted || 'N/A'}</td>
+                <td>${corte.nombre_usuario || 'N/A'}</td>
+                <td>$${montoInicial.toFixed(2)}</td>
+                <td>$${ventasTotales.toFixed(2)}</td>
+                <td>$${efectivoFinal.toFixed(2)}</td>
+                <td class="${diferenciaClass} fw-bold">$${diferencia.toFixed(2)}</td>
+                <td>
+                    <span class="badge-estado ${corte.estado === 'abierta' ? 'badge-abierta' : 'badge-cerrada'}">
+                        ${corte.estado || 'cerrada'}
+                    </span>
+                </td>
+            </tr>
+        `;
+            });
+
+            html += `</tbody></table></div>`;
+            $('#historial-cortes').html(html);
+        }
+
+        // Función auxiliar para obtener datos del ticket
+        function obtenerDatosTicket() {
+            return new Promise((resolve, reject) => {
+                $.ajax({
+                    url: 'funciones/corte_caja.php',
+                    type: 'POST',
+                    data: {
+                        funcion: 'ObtenerDatosTicket'
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.error) {
+                            reject(response.error);
+                        } else {
+                            resolve(response);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        reject('Error de conexión: ' + error);
+                    }
+                });
+            });
+        }
+
+        function imprimirTicketAutomatico(ticketData, efectivoFinal, observaciones) {
             const fechaHora = new Date().toLocaleString('es-MX');
-            const ticketData = lastTicketData;
-            const efectivoFinal = lastEfectivoFinal;
-
             const fechaApertura = ticketData.fecha_apertura || 'N/A';
             const montoInicial = parseFloat(ticketData.monto_inicial || 0).toFixed(2);
             const ventasTotales = parseFloat(ticketData.ventas_totales || 0).toFixed(2);
@@ -1402,17 +1471,17 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             if (ticketData.meseros && ticketData.meseros.length > 0) {
                 ticketData.meseros.forEach((mesero, index) => {
                     ticketContent += `
-            <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
-                <div class="row">
-                    <div class="col-7">
-                        <strong>${mesero.nombre_mesero}</strong><br>
-                        <small>${mesero.total_pedidos} pedido(s)</small>
-                    </div>
-                    <div class="col-5 text-end">
-                        $${parseFloat(mesero.total || 0).toFixed(2)}
+                <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
+                    <div class="row">
+                        <div class="col-7">
+                            <strong>${mesero.nombre_mesero}</strong><br>
+                            <small>${mesero.total_pedidos} pedido(s)</small>
+                        </div>
+                        <div class="col-5 text-end">
+                            $${parseFloat(mesero.total || 0).toFixed(2)}
+                        </div>
                     </div>
                 </div>
-            </div>
             `;
                 });
             } else {
@@ -1434,7 +1503,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
         
         <div class="ticket-footer text-center">
             <p><strong>Usuario:</strong> ${ticketData.nombre_usuario || 'N/A'}</p>
-            <p>${ticketData.observaciones || 'Sin observaciones'}</p>
+            <p>${observaciones || 'Sin observaciones'}</p>
             <hr>
             <p><small>*** CORTE DE CAJA GENERADO AUTOMÁTICAMENTE ***</small></p>
         </div>
@@ -1447,79 +1516,17 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             ventana.document.close();
             ventana.focus();
 
-            // Esperar a que cargue el contenido antes de imprimir
+            // Imprimir automáticamente
             setTimeout(() => {
                 ventana.print();
-                // Opcional: cerrar después de imprimir
-                // setTimeout(() => ventana.close(), 1000);
+
+                // Cerrar el modal de SweetAlert y recargar la página después de imprimir
+                setTimeout(() => {
+                    Swal.close();
+                    location.reload();
+                }, 1000);
+
             }, 500);
-        }
-
-        // Función para descargar PDF (placeholder)
-        function descargarPDF() {
-            Swal.fire('Información', 'La funcionalidad de descarga PDF estará disponible pronto.', 'info');
-        }
-
-        // Cargar historial
-        $('#modalHistorial').on('show.bs.modal', function () {
-            $.ajax({
-                url: 'funciones/corte_caja.php',
-                type: 'POST',
-                data: {
-                    funcion: 'ObtenerHistorial'
-                },
-                dataType: 'json',
-                success: function (data) {
-                    if (data.error) {
-                        $('#historial-cortes').html('<p class="text-danger">Error: ' + data.error + '</p>');
-                        return;
-                    }
-                    mostrarHistorial(data);
-                },
-                error: function (xhr, status, error) {
-                    $('#historial-cortes').html('<p class="text-danger">Error al cargar el historial</p>');
-                }
-            });
-        });
-
-        // Mostrar historial
-        function mostrarHistorial(cortes) {
-            if (cortes.length === 0) {
-                $('#historial-cortes').html('<p class="text-center text-muted">No hay cortes registrados</p>');
-                return;
-            }
-
-            let html = `
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Fecha</th>
-                                <th>Usuario</th>
-                                <th>Monto Inicial</th>
-                                <th>Ventas</th>
-                                <th>Efectivo Final</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
-
-            cortes.forEach(corte => {
-                html += `
-                    <tr>
-                        <td>${corte.fecha_apertura_formatted || corte.fecha_apertura}</td>
-                        <td>${corte.nombre_usuario}</td>
-                        <td>$${corte.monto_inicial}</td>
-                        <td>$${corte.ventas_totales || '0.00'}</td>
-                        <td>$${corte.monto_final || '0.00'}</td>
-                        <td><span class="badge-estado ${corte.estado === 'abierta' ? 'badge-abierta' : 'badge-cerrada'}">${corte.estado}</span></td>
-                    </tr>
-                `;
-            });
-
-            html += `</tbody></table></div>`;
-            $('#historial-cortes').html(html);
         }
 
         // ========== INICIALIZACIÓN ==========
@@ -1527,7 +1534,8 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             // Cargar resumen si la caja está abierta
             if (<?php echo $caja_abierta ? 'true' : 'false'; ?>) {
                 cargarResumen();
-                setInterval(cargarResumen, 30000);
+                // Auto-actualizar cada 5 segundos
+                setInterval(cargarResumen, 5000);
             }
         });
     </script>
