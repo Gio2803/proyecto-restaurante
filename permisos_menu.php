@@ -49,9 +49,27 @@ if (!isset($_SESSION['id_usuario'])) {
     exit;
 }
 
-// Obtener lista de usuarios (activos, no dados de baja)
+// Obtener parámetro de búsqueda
+$busqueda = isset($_GET['busqueda']) ? trim($_GET['busqueda']) : '';
+
+// Obtener lista de usuarios (activos, no dados de baja) con filtro de búsqueda
 $usuarios = [];
-$stmt = $conexion->query("SELECT id_usuario, nombre, usuario FROM usuarios WHERE fechabaja IS NULL ORDER BY nombre");
+$sql_usuarios = "SELECT id_usuario, nombre, usuario FROM usuarios WHERE fechabaja IS NULL";
+
+if (!empty($busqueda)) {
+    $sql_usuarios .= " AND (nombre ILIKE :busqueda OR usuario ILIKE :busqueda)";
+}
+
+$sql_usuarios .= " ORDER BY nombre";
+
+$stmt = $conexion->prepare($sql_usuarios);
+
+if (!empty($busqueda)) {
+    $stmt->execute(['busqueda' => '%' . $busqueda . '%']);
+} else {
+    $stmt->execute();
+}
+
 if ($stmt) {
     $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
@@ -176,32 +194,71 @@ if (isset($_GET['usuario_id'])) {
             border-radius: 0 0 15px 15px;
         }
 
-        .modal-header {
-            background-color: var(--light-color);
-            border-bottom: 2px solid var(--primary-color);
-        }
-
-        .header-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 20px 25px;
-            background: white;
-            border-bottom: 1px solid #eee;
-        }
-
-        .stats-card {
-            background: linear-gradient(135deg, var(--primary-color), var(--light-color));
-            color: white;
+        .search-box {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
             border-radius: 10px;
-            padding: 15px;
+            padding: 20px;
             margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid #dee2e6;
         }
 
-        .stats-number {
-            font-size: 2rem;
-            font-weight: 700;
+        .search-icon {
+            color: var(--primary-color);
+        }
+
+        .user-results {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            margin-top: 10px;
+            background: white;
+        }
+
+        .user-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .user-item:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .user-item:last-child {
+            border-bottom: none;
+        }
+
+        .user-item.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .user-name {
+            font-weight: 600;
+        }
+
+        .user-username {
+            font-size: 0.9rem;
+            color: #6c757d;
+        }
+
+        .user-item.active .user-username {
+            color: #e9ecef;
+        }
+
+        .results-count {
+            font-size: 0.9rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        .loading-spinner {
+            display: none;
+            text-align: center;
+            padding: 10px;
+            color: var(--primary-color);
         }
 
         /* Estilos específicos para permisos */
@@ -471,25 +528,89 @@ if (isset($_GET['usuario_id'])) {
                     </div>
                 <?php endif; ?>
                 
-                <!-- Selección de usuario -->
-                <form method="GET" class="mb-4">
+                <!-- BUSCADOR DE USUARIOS -->
+                <div class="search-box">
                     <div class="row">
-                        <div class="col-md-6">
-                            <label for="usuario_id" class="form-label">Seleccionar Usuario</label>
-                            <select class="form-select" id="usuario_id" name="usuario_id" onchange="this.form.submit()">
-                                <option value="">-- Seleccione un usuario --</option>
-                                <?php foreach ($usuarios as $usuario): ?>
-                                    <option value="<?php echo $usuario['id_usuario']; ?>" 
-                                        <?php echo ($usuario_seleccionado == $usuario['id_usuario']) ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($usuario['nombre'] . ' (' . $usuario['usuario'] . ')'); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                        <div class="col-md-8">
+                            <label for="busqueda" class="form-label">
+                                <i class="bi bi-search me-1"></i>Buscar Usuario
+                            </label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="busqueda" name="busqueda" 
+                                       placeholder="Escribe el nombre o usuario..." 
+                                       value="<?php echo htmlspecialchars($busqueda); ?>"
+                                       autocomplete="off">
+                                <?php if (!empty($busqueda)): ?>
+                                    <button class="btn btn-outline-danger" type="button" onclick="limpiarBusqueda()">
+                                        <i class="bi bi-x-circle"></i>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                            <div id="resultsInfo">
+                                <?php if (!empty($busqueda)): ?>
+                                    <div class="results-count">
+                                        <?php echo count($usuarios); ?> usuario(s) encontrado(s) para "<?php echo htmlspecialchars($busqueda); ?>"
+                                    </div>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
-                </form>
-                
+
+                    <!-- SPINNER DE CARGA -->
+                    <div class="loading-spinner" id="loadingSpinner">
+                        <i class="bi bi-arrow-repeat spinner"></i> Buscando...
+                    </div>
+
+                    <!-- LISTA DE RESULTADOS -->
+                    <div id="userResultsContainer">
+                        <?php if (!empty($busqueda) && !empty($usuarios) && !$usuario_seleccionado): ?>
+                            <div class="user-results mt-3">
+                                <?php foreach ($usuarios as $usuario): ?>
+                                    <div class="user-item"
+                                         onclick="seleccionarUsuario(<?php echo $usuario['id_usuario']; ?>, '<?php echo htmlspecialchars($usuario['nombre']); ?>')">
+                                        <div class="user-name">
+                                            <i class="bi bi-person-circle me-2"></i>
+                                            <?php echo htmlspecialchars($usuario['nombre']); ?>
+                                        </div>
+                                        <div class="user-username">
+                                            @<?php echo htmlspecialchars($usuario['usuario']); ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php elseif (!empty($busqueda) && empty($usuarios) && !$usuario_seleccionado): ?>
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                No se encontraron usuarios para "<?php echo htmlspecialchars($busqueda); ?>"
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
                 <?php if ($usuario_seleccionado): ?>
+                    <!-- Mostrar información del usuario seleccionado -->
+                    <?php 
+                    $usuario_actual = null;
+                    foreach ($usuarios as $usuario) {
+                        if ($usuario['id_usuario'] == $usuario_seleccionado) {
+                            $usuario_actual = $usuario;
+                            break;
+                        }
+                    }
+                    ?>
+                    
+                    <div class="alert alert-info d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-person-check me-2"></i>
+                            <strong>Editando permisos para:</strong> 
+                            <?php echo htmlspecialchars($usuario_actual['nombre']); ?> 
+                            (<?php echo htmlspecialchars($usuario_actual['usuario']); ?>)
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="volverABusqueda()">
+                            <i class="bi bi-arrow-left me-1"></i>Cambiar Usuario
+                        </button>
+                    </div>
+
                     <!-- Formulario de permisos -->
                     <form method="POST">
                         <input type="hidden" name="id_usuario" value="<?php echo $usuario_seleccionado; ?>">
@@ -576,12 +697,12 @@ if (isset($_GET['usuario_id'])) {
                             <button type="submit" class="btn-custom">
                                 <i class="bi bi-check-circle me-2"></i>Guardar Permisos
                             </button>
-                            <a href="permisos_menu.php" class="btn btn-secondary">Cancelar</a>
+                            <button type="button" class="btn btn-secondary" onclick="volverABusqueda()">Cancelar</button>
                         </div>
                     </form>
-                <?php else: ?>
+                <?php elseif (empty($busqueda)): ?>
                     <div class="alert alert-info">
-                        <i class="bi bi-info-circle me-2"></i>Seleccione un usuario para gestionar sus permisos.
+                        <i class="bi bi-info-circle me-2"></i>Escribe en el buscador para encontrar usuarios y gestionar sus permisos.
                     </div>
                 <?php endif; ?>
             </div>
@@ -594,71 +715,106 @@ if (isset($_GET['usuario_id'])) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        // ========== FUNCIONES DEL SIDEBAR ==========
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            sidebar.classList.toggle('collapsed');
-            mainContent.classList.toggle('expanded');
-        }
-
-        function toggleMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            sidebar.classList.toggle('mobile-open');
-            mainContent.classList.toggle('mobile-expanded');
-        }
-
-        function closeMobileSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const mainContent = document.getElementById('mainContent');
-            if (window.innerWidth <= 992) {
-                sidebar.classList.remove('mobile-open');
-                mainContent.classList.remove('mobile-expanded');
+        // ========== FUNCIONES DEL BUSCADOR ==========
+        let searchTimer;
+        
+        function buscarUsuarios() {
+            const busqueda = document.getElementById('busqueda').value.trim();
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const resultsContainer = document.getElementById('userResultsContainer');
+            const resultsInfo = document.getElementById('resultsInfo');
+            
+            // Mostrar spinner
+            loadingSpinner.style.display = 'block';
+            resultsContainer.innerHTML = '';
+            
+            // Limpiar timer anterior
+            if (searchTimer) {
+                clearTimeout(searchTimer);
             }
+            
+            // Esperar 500ms después de que el usuario deje de escribir
+            searchTimer = setTimeout(() => {
+                if (busqueda.length === 0) {
+                    loadingSpinner.style.display = 'none';
+                    resultsInfo.innerHTML = '';
+                    resultsContainer.innerHTML = '';
+                    return;
+                }
+                
+                // Hacer la búsqueda via AJAX
+                fetch(`permisos_menu.php?busqueda=${encodeURIComponent(busqueda)}&ajax=1`)
+                    .then(response => response.text())
+                    .then(html => {
+                        // Extraer solo la parte de resultados del HTML
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        
+                        const newResults = tempDiv.querySelector('#userResultsContainer');
+                        const newInfo = tempDiv.querySelector('#resultsInfo');
+                        
+                        if (newResults) {
+                            resultsContainer.innerHTML = newResults.innerHTML;
+                        }
+                        if (newInfo) {
+                            resultsInfo.innerHTML = newInfo.innerHTML;
+                        }
+                        
+                        loadingSpinner.style.display = 'none';
+                    })
+                    .catch(error => {
+                        console.error('Error en la búsqueda:', error);
+                        loadingSpinner.style.display = 'none';
+                        resultsContainer.innerHTML = `
+                            <div class="alert alert-danger mt-3">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                Error al buscar usuarios
+                            </div>
+                        `;
+                    });
+            }, 500);
+        }
+        
+        function seleccionarUsuario(idUsuario, nombreUsuario) {
+            // Limpiar el área de resultados
+            document.getElementById('userResultsContainer').innerHTML = '';
+            document.getElementById('resultsInfo').innerHTML = '';
+            
+            // Redirigir a la misma página con el usuario seleccionado
+            const busqueda = document.getElementById('busqueda').value;
+            const url = `permisos_menu.php?usuario_id=${idUsuario}&busqueda=${encodeURIComponent(busqueda)}`;
+            window.location.href = url;
+        }
+        
+        function limpiarBusqueda() {
+            document.getElementById('busqueda').value = '';
+            document.getElementById('userResultsContainer').innerHTML = '';
+            document.getElementById('resultsInfo').innerHTML = '';
+            document.getElementById('busqueda').focus();
+        }
+        
+        function volverABusqueda() {
+            const busqueda = document.getElementById('busqueda').value;
+            window.location.href = `permisos_menu.php?busqueda=${encodeURIComponent(busqueda)}`;
         }
 
-        function confirmLogout() {
-            Swal.fire({
-                title: '¿Cerrar sesión?',
-                text: "¿Estás seguro de que quieres salir del sistema?",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
-                confirmButtonText: 'Sí, cerrar sesión',
-                cancelButtonText: 'Cancelar'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = 'logout.php';
-                }
-            });
-        }
-
-        // ========== INICIALIZACIÓN DEL SIDEBAR ==========
-        document.addEventListener('DOMContentLoaded', function () {
-            const sidebarToggle = document.getElementById('sidebarToggle');
-            const mainContent = document.getElementById('mainContent');
-
-            sidebarToggle.addEventListener('click', toggleMobileSidebar);
-            mainContent.addEventListener('click', closeMobileSidebar);
-
-            function handleResize() {
-                const sidebar = document.getElementById('sidebar');
-                if (window.innerWidth > 992) {
-                    sidebar.classList.remove('mobile-open');
-                    mainContent.classList.remove('mobile-expanded');
-                } else {
-                    sidebar.classList.remove('collapsed');
-                    mainContent.classList.remove('expanded');
-                }
-            }
-
-            window.addEventListener('resize', handleResize);
-
-            // Auto-colapsar en móvil
-            if (window.innerWidth <= 992) {
-                closeMobileSidebar();
+        // ========== INICIALIZACIÓN DEL BUSCADOR ==========
+        document.addEventListener('DOMContentLoaded', function() {
+            const busquedaInput = document.getElementById('busqueda');
+            
+            if (busquedaInput) {
+                // Enfocar automáticamente en el campo de búsqueda
+                busquedaInput.focus();
+                
+                // Buscar automáticamente al escribir
+                busquedaInput.addEventListener('input', buscarUsuarios);
+                
+                // Limpiar búsqueda con Escape
+                busquedaInput.addEventListener('keydown', function(e) {
+                    if (e.key === 'Escape') {
+                        limpiarBusqueda();
+                    }
+                });
             }
         });
 
@@ -701,6 +857,61 @@ if (isset($_GET['usuario_id'])) {
                     parent.checked = allChecked;
                 });
             });
+        });
+
+        // ========== FUNCIONES DEL SIDEBAR ==========
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('collapsed');
+            mainContent.classList.toggle('expanded');
+        }
+
+        function toggleMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            sidebar.classList.toggle('mobile-open');
+            mainContent.classList.toggle('mobile-expanded');
+        }
+
+        function closeMobileSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const mainContent = document.getElementById('mainContent');
+            if (window.innerWidth <= 992) {
+                sidebar.classList.remove('mobile-open');
+                mainContent.classList.remove('mobile-expanded');
+            }
+        }
+
+        // ========== INICIALIZACIÓN DEL SIDEBAR ==========
+        document.addEventListener('DOMContentLoaded', function () {
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            const mainContent = document.getElementById('mainContent');
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', toggleMobileSidebar);
+            }
+            if (mainContent) {
+                mainContent.addEventListener('click', closeMobileSidebar);
+            }
+
+            function handleResize() {
+                const sidebar = document.getElementById('sidebar');
+                if (window.innerWidth > 992) {
+                    if (sidebar) sidebar.classList.remove('mobile-open');
+                    if (mainContent) mainContent.classList.remove('mobile-expanded');
+                } else {
+                    if (sidebar) sidebar.classList.remove('collapsed');
+                    if (mainContent) mainContent.classList.remove('expanded');
+                }
+            }
+
+            window.addEventListener('resize', handleResize);
+
+            // Auto-colapsar en móvil
+            if (window.innerWidth <= 992) {
+                closeMobileSidebar();
+            }
         });
     </script>
 </body>

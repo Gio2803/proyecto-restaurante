@@ -48,13 +48,13 @@ function verificarPermisoCorte($id_usuario)
     return $stmt->fetch(PDO::FETCH_ASSOC) !== false;
 }
 
-// Función para obtener caja abierta
+// Función para obtener caja abierta (MODIFICADA PARA POSTGRES)
 function obtenerCajaAbierta($id_usuario)
 {
     global $conexion;
 
     $sql = "SELECT * FROM corte_caja 
-            WHERE id_usuario = ? AND estado = 'abierta' 
+            WHERE id_usuario = ? AND estado = 'ABIERTO' 
             ORDER BY fecha_apertura DESC LIMIT 1";
 
     $stmt = $conexion->prepare($sql);
@@ -701,7 +701,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
         </div>
     </div>
 
-    <!-- Modal Cierre de Caja CORREGIDO -->
+    <!-- Modal Cierre de Caja -->
     <div class="modal fade modal-cierre-caja" id="modalCierreCaja" tabindex="-1" aria-labelledby="modalCierreCajaLabel"
         aria-hidden="true">
         <div class="modal-dialog modal-lg">
@@ -752,8 +752,9 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                                 </div>
                                 <div class="d-flex justify-content-between">
                                     <span class="text-muted">Apertura:</span>
-                                    <span
-                                        class="text-muted"><?php echo $caja_abierta ? date('H:i', strtotime($caja_abierta['fecha_apertura'])) : 'N/A'; ?></span>
+                                    <span class="text-muted">
+                                        <?php echo $caja_abierta ? date('H:i', strtotime($caja_abierta['fecha_apertura'])) : 'N/A'; ?>
+                                    </span>
                                 </div>
                             </div>
 
@@ -816,10 +817,6 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        // Variables globales para almacenar datos del ticket
-        let lastTicketData = null;
-        let lastEfectivoFinal = null;
-
         // ========== FUNCIONES DE CORTE DE CAJA ==========
 
         // Cargar resumen de ventas
@@ -1054,8 +1051,8 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                                 // Cerrar el modal primero
                                 $('#modalCierreCaja').modal('hide');
 
-                                // Generar y mostrar ticket automáticamente
-                                generarTicketAutomatico(ticketData, efectivo_final, observaciones);
+                                // Usar la función de impresión automática
+                                imprimirTicketAutomatico(ticketData, efectivo_final, observaciones);
                             })
                             .catch(error => {
                                 console.error('Error obteniendo datos del ticket:', error);
@@ -1071,133 +1068,8 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 }
             });
         }
-        function generarTicketAutomatico(ticketData, efectivoFinal, observaciones) {
-            const fechaHora = new Date().toLocaleString('es-MX');
-            const fechaApertura = ticketData.fecha_apertura;
-            const montoInicial = parseFloat(ticketData.monto_inicial).toFixed(2);
-            const ventasTotales = parseFloat(ticketData.ventas_totales).toFixed(2);
-            const totalEsperado = parseFloat(ticketData.monto_inicial) + parseFloat(ticketData.ventas_totales);
 
-            let ticketHTML = `
-        <div class="ticket-container">
-            <div class="ticket-header text-center">
-                <h4>POZENTE PIZZERÍA</h4>
-                <p>Corte de Caja - Cierre</p>
-                <p><strong>Fecha:</strong> ${fechaHora}</p>
-            </div>
-            
-            <div class="ticket-info">
-                <div class="row">
-                    <div class="col-6">
-                        <strong>Apertura:</strong><br>
-                        ${fechaApertura}
-                    </div>
-                    <div class="col-6">
-                        <strong>Cierre:</strong><br>
-                        ${fechaHora}
-                    </div>
-                </div>
-                <hr>
-                
-                <div class="resumen-caja">
-                    <div class="row">
-                        <div class="col-8"><strong>Monto Inicial:</strong></div>
-                        <div class="col-4 text-end">$${montoInicial}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-8"><strong>Ventas Totales:</strong></div>
-                        <div class="col-4 text-end">$${ventasTotales}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-8"><strong>Total Esperado:</strong></div>
-                        <div class="col-4 text-end">$${totalEsperado.toFixed(2)}</div>
-                    </div>
-                    <div class="row">
-                        <div class="col-8"><strong>Efectivo Final:</strong></div>
-                        <div class="col-4 text-end">$${parseFloat(efectivoFinal).toFixed(2)}</div>
-                    </div>
-                    <div class="row total-row">
-                        <div class="col-8"><strong>Diferencia:</strong></div>
-                        <div class="col-4 text-end">
-                            $${(parseFloat(efectivoFinal) - totalEsperado).toFixed(2)}
-                        </div>
-                    </div>
-                </div>
-                <hr>
-            </div>
-            
-            <div class="ventas-meseros">
-                <h5 class="text-center">VENTAS POR MESERO</h5>
-    `;
-
-            // Agregar cada mesero
-            if (ticketData.meseros && ticketData.meseros.length > 0) {
-                ticketData.meseros.forEach((mesero, index) => {
-                    ticketHTML += `
-                <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
-                    <div class="row">
-                        <div class="col-7">
-                            <strong>${mesero.nombre_mesero}</strong><br>
-                            <small>${mesero.total_pedidos} pedido(s)</small>
-                        </div>
-                        <div class="col-5 text-end">
-                            $${parseFloat(mesero.total).toFixed(2)}
-                        </div>
-                    </div>
-                </div>
-            `;
-                });
-            } else {
-                ticketHTML += `
-            <div class="text-center">
-                <p>No hay ventas por mesero</p>
-            </div>
-        `;
-            }
-
-            ticketHTML += `
-                <div class="total-meseros">
-                    <div class="row">
-                        <div class="col-6"><strong>TOTAL MESEROS:</strong></div>
-                        <div class="col-6 text-end"><strong>$${ventasTotales}</strong></div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="ticket-footer text-center">
-                <p><strong>Usuario:</strong> ${ticketData.nombre_usuario}</p>
-                <p>${observaciones || 'Sin observaciones'}</p>
-                <hr>
-                <p><small>*** CORTE DE CAJA GENERADO AUTOMÁTICAMENTE ***</small></p>
-            </div>
-        </div>
-        
-        <div class="text-center mt-3">
-            <p class="text-info"><i class="bi bi-info-circle"></i> El ticket se imprimirá automáticamente</p>
-        </div>
-    `;
-
-            // Mostrar ticket en un modal
-            Swal.fire({
-                title: 'Caja Cerrada - Imprimiendo Ticket',
-                html: ticketHTML,
-                width: 600,
-                showCloseButton: false,
-                showConfirmButton: false,
-                allowOutsideClick: false,
-                customClass: {
-                    popup: 'ticket-popup'
-                },
-                didOpen: () => {
-                    // Imprimir automáticamente después de mostrar el modal
-                    setTimeout(() => {
-                        imprimirTicketAutomatico(ticketData, efectivoFinal, observaciones);
-                    }, 1000);
-                }
-            });
-        }
-
-        // Cargar historial - FUNCIÓN CORREGIDA
+        // Cargar historial
         $('#modalHistorial').on('show.bs.modal', function () {
             $.ajax({
                 url: 'funciones/corte_caja.php',
@@ -1207,63 +1079,47 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 },
                 dataType: 'json',
                 success: function (data) {
-                    // Verificar si hay error
                     if (data.error) {
                         $('#historial-cortes').html(`
-                    <div class="alert alert-danger">
-                        <h5>Error al cargar el historial</h5>
-                        <p>${data.error}</p>
-                    </div>
-                `);
+                            <div class="alert alert-danger">
+                                <h5>Error al cargar el historial</h5>
+                                <p>${data.error}</p>
+                            </div>
+                        `);
                         return;
                     }
-
-                    // Si no hay datos (array vacío)
-                    if (!data || data.length === 0) {
-                        $('#historial-cortes').html(`
-                    <div class="text-center py-4">
-                        <i class="bi bi-inbox display-1 text-muted"></i>
-                        <h5 class="text-muted mt-3">No hay cortes registrados</h5>
-                        <p class="text-muted">Aún no se han realizado cortes de caja.</p>
-                    </div>
-                `);
-                        return;
-                    }
-
                     mostrarHistorial(data);
                 },
                 error: function (xhr, status, error) {
-                    console.error('Error AJAX:', error);
                     $('#historial-cortes').html(`
-                <div class="alert alert-danger">
-                    <h5>Error de conexión</h5>
-                    <p>No se pudo cargar el historial. Error: ${error}</p>
-                    <small>Verifique la conexión e intente nuevamente.</small>
-                </div>
-            `);
+                        <div class="alert alert-danger">
+                            <h5>Error de conexión</h5>
+                            <p>No se pudo cargar el historial.</p>
+                        </div>
+                    `);
                 }
             });
         });
 
-        // Mostrar historial - FUNCIÓN CORREGIDA
+        // Mostrar historial
         function mostrarHistorial(cortes) {
             let html = `
-        <div class="table-responsive">
-            <table class="table table-hover table-striped">
-                <thead class="table-dark">
-                    <tr>
-                        <th>Fecha Apertura</th>
-                        <th>Fecha Cierre</th>
-                        <th>Usuario</th>
-                        <th>Monto Inicial</th>
-                        <th>Ventas</th>
-                        <th>Efectivo Final</th>
-                        <th>Diferencia</th>
-                        <th>Estado</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Fecha Apertura</th>
+                                <th>Fecha Cierre</th>
+                                <th>Usuario</th>
+                                <th>Monto Inicial</th>
+                                <th>Ventas</th>
+                                <th>Efectivo Final</th>
+                                <th>Diferencia</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
 
             cortes.forEach(corte => {
                 const montoInicial = parseFloat(corte.monto_inicial || 0);
@@ -1281,53 +1137,39 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 }
 
                 html += `
-            <tr>
-                <td>${corte.fecha_apertura_formatted || 'N/A'}</td>
-                <td>${corte.fecha_cierre_formatted || 'N/A'}</td>
-                <td>${corte.nombre_usuario || 'N/A'}</td>
-                <td>$${montoInicial.toFixed(2)}</td>
-                <td>$${ventasTotales.toFixed(2)}</td>
-                <td>$${efectivoFinal.toFixed(2)}</td>
-                <td class="${diferenciaClass} fw-bold">$${diferencia.toFixed(2)}</td>
-                <td>
-                    <span class="badge-estado ${corte.estado === 'abierta' ? 'badge-abierta' : 'badge-cerrada'}">
-                        ${corte.estado || 'cerrada'}
-                    </span>
-                </td>
-            </tr>
-        `;
+                    <tr>
+                        <td>${corte.fecha_apertura_formatted || 'N/A'}</td>
+                        <td>${corte.fecha_cierre_formatted || 'N/A'}</td>
+                        <td>${corte.nombre_usuario || 'N/A'}</td>
+                        <td>$${montoInicial.toFixed(2)}</td>
+                        <td>$${ventasTotales.toFixed(2)}</td>
+                        <td>$${efectivoFinal.toFixed(2)}</td>
+                        <td class="${diferenciaClass} fw-bold">$${diferencia.toFixed(2)}</td>
+                        <td>
+                            <span class="badge-estado ${corte.estado === 'ABIERTO' ? 'badge-abierta' : 'badge-cerrada'}">
+                                ${corte.estado || 'CERRADO'}
+                            </span>
+                        </td>
+                    </tr>
+                `;
             });
 
             html += `</tbody></table></div>`;
             $('#historial-cortes').html(html);
         }
 
-        // Función auxiliar para obtener datos del ticket
-        function obtenerDatosTicket() {
-            return new Promise((resolve, reject) => {
-                $.ajax({
-                    url: 'funciones/corte_caja.php',
-                    type: 'POST',
-                    data: {
-                        funcion: 'ObtenerDatosTicket'
-                    },
-                    dataType: 'json',
-                    success: function (response) {
-                        if (response.error) {
-                            reject(response.error);
-                        } else {
-                            resolve(response);
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        reject('Error de conexión: ' + error);
-                    }
-                });
-            });
-        }
-
+        // Función para imprimir automáticamente sin botón
         function imprimirTicketAutomatico(ticketData, efectivoFinal, observaciones) {
-            const fechaHora = new Date().toLocaleString('es-MX');
+            // Usar formato de 24 horas para ambas fechas
+            const fechaHora = new Date().toLocaleString('es-MX', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+            }).replace(',', '');
+
             const fechaApertura = ticketData.fecha_apertura || 'N/A';
             const montoInicial = parseFloat(ticketData.monto_inicial || 0).toFixed(2);
             const ventasTotales = parseFloat(ticketData.ventas_totales || 0).toFixed(2);
@@ -1418,7 +1260,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
 <body>
     <div class="ticket-container">
         <div class="ticket-header text-center">
-            <h4>POZENTE PIZZERÍA</h4>
+            <h4>PIZZERÍA</h4>
             <p>Corte de Caja - Cierre</p>
             <p><strong>Fecha:</strong> ${fechaHora}</p>
         </div>
@@ -1527,6 +1369,215 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 }, 1000);
 
             }, 500);
+        }
+
+        // Función para generar ticket automáticamente
+        function generarTicketAutomatico(ticketData, efectivoFinal, observaciones) {
+            const fechaHora = new Date().toLocaleString('es-MX');
+            const fechaApertura = ticketData.fecha_apertura;
+            const montoInicial = parseFloat(ticketData.monto_inicial).toFixed(2);
+            const ventasTotales = parseFloat(ticketData.ventas_totales).toFixed(2);
+            const totalEsperado = parseFloat(ticketData.monto_inicial) + parseFloat(ticketData.ventas_totales);
+
+            let ticketHTML = `
+        <div class="ticket-container">
+            <div class="ticket-header text-center">
+                <h4>PIZZERÍA</h4>
+                <p>Corte de Caja - Cierre</p>
+                <p><strong>Fecha:</strong> ${fechaHora}</p>
+            </div>
+            
+            <div class="ticket-info">
+                <div class="row">
+                    <div class="col-6">
+                        <strong>Apertura:</strong><br>
+                        ${fechaApertura}
+                    </div>
+                    <div class="col-6">
+                        <strong>Cierre:</strong><br>
+                        ${fechaHora}
+                    </div>
+                </div>
+                <hr>
+                
+                <div class="resumen-caja">
+                    <div class="row">
+                        <div class="col-8"><strong>Monto Inicial:</strong></div>
+                        <div class="col-4 text-end">$${montoInicial}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-8"><strong>Ventas Totales:</strong></div>
+                        <div class="col-4 text-end">$${ventasTotales}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-8"><strong>Total Esperado:</strong></div>
+                        <div class="col-4 text-end">$${totalEsperado.toFixed(2)}</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-8"><strong>Efectivo Final:</strong></div>
+                        <div class="col-4 text-end">$${parseFloat(efectivoFinal).toFixed(2)}</div>
+                    </div>
+                    <div class="row total-row">
+                        <div class="col-8"><strong>Diferencia:</strong></div>
+                        <div class="col-4 text-end">
+                            $${(parseFloat(efectivoFinal) - totalEsperado).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+                <hr>
+            </div>
+            
+            <div class="ventas-meseros">
+                <h5 class="text-center">VENTAS POR MESERO</h5>
+    `;
+
+            // Agregar cada mesero
+            if (ticketData.meseros && ticketData.meseros.length > 0) {
+                ticketData.meseros.forEach((mesero, index) => {
+                    ticketHTML += `
+                <div class="mesero-ticket ${index % 2 === 0 ? 'bg-light' : ''}">
+                    <div class="row">
+                        <div class="col-7">
+                            <strong>${mesero.nombre_mesero}</strong><br>
+                            <small>${mesero.total_pedidos} pedido(s)</small>
+                        </div>
+                        <div class="col-5 text-end">
+                            $${parseFloat(mesero.total).toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+            `;
+                });
+            } else {
+                ticketHTML += `
+            <div class="text-center">
+                <p>No hay ventas por mesero</p>
+            </div>
+        `;
+            }
+
+            ticketHTML += `
+                <div class="total-meseros">
+                    <div class="row">
+                        <div class="col-6"><strong>TOTAL MESEROS:</strong></div>
+                        <div class="col-6 text-end"><strong>$${ventasTotales}</strong></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="ticket-footer text-center">
+                <p><strong>Usuario:</strong> ${ticketData.nombre_usuario}</p>
+                <p>${observaciones || 'Sin observaciones'}</p>
+                <hr>
+                <p><small>*** CORTE DE CAJA GENERADO AUTOMÁTICAMENTE ***</small></p>
+            </div>
+        </div>
+        
+        <div class="text-center mt-3">
+            <button class="btn btn-primary no-print" onclick="imprimirTicket()">
+                <i class="bi bi-printer"></i> Imprimir Ticket
+            </button>
+        </div>
+    `;
+
+            // Mostrar ticket en un modal
+            Swal.fire({
+                title: 'Caja Cerrada Exitosamente',
+                html: ticketHTML,
+                width: 600,
+                showCloseButton: true,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'ticket-popup'
+                },
+                didOpen: () => {
+                    // Asignar la función de impresión al botón
+                    window.imprimirTicket = function () {
+                        const printContent = document.querySelector('.ticket-container').outerHTML;
+                        const ventana = window.open('', '_blank');
+                        ventana.document.write(`
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <title>Ticket Cierre de Caja</title>
+                        <style>
+                            body { font-family: 'Courier New', monospace; font-size: 12px; margin: 0; padding: 10px; }
+                            .ticket-container { border: 1px solid #000; padding: 10px; }
+                            .text-center { text-align: center; }
+                            .text-end { text-align: right; }
+                            .row { display: flex; margin-bottom: 3px; }
+                            .col-1 { flex: 0 0 8.333333%; }
+                            .col-2 { flex: 0 0 16.666667%; }
+                            .col-3 { flex: 0 0 25%; }
+                            .col-4 { flex: 0 0 33.333333%; }
+                            .col-5 { flex: 0 0 41.666667%; }
+                            .col-6 { flex: 0 0 50%; }
+                            .col-7 { flex: 0 0 58.333333%; }
+                            .col-8 { flex: 0 0 66.666667%; }
+                            .col-9 { flex: 0 0 75%; }
+                            .col-10 { flex: 0 0 83.333333%; }
+                            .col-11 { flex: 0 0 91.666667%; }
+                            .col-12 { flex: 0 0 100%; }
+                            hr { border: none; border-top: 1px dashed #000; margin: 8px 0; }
+                            .total-row { border-top: 1px solid #000; padding-top: 3px; margin-top: 3px; font-weight: bold; }
+                            .mesero-ticket { padding: 2px 0; border-bottom: 1px dotted #ccc; }
+                            .total-meseros { border-top: 2px solid #000; padding-top: 5px; margin-top: 5px; font-weight: bold; }
+                            @media print { 
+                                body { margin: 0; padding: 0; }
+                                .ticket-container { border: none; }
+                                .no-print { display: none !important; }
+                            }
+                        </style>
+                    </head>
+                    <body>
+                        ${printContent}
+                    </body>
+                    </html>
+                `);
+                        ventana.document.close();
+                        ventana.focus();
+
+                        // Imprimir automáticamente
+                        setTimeout(() => {
+                            ventana.print();
+                            setTimeout(() => {
+                                ventana.close();
+                                Swal.close();
+                                location.reload();
+                            }, 500);
+                        }, 500);
+                    };
+
+                    // Imprimir automáticamente después de 1 segundo
+                    setTimeout(() => {
+                        window.imprimirTicket();
+                    }, 1000);
+                }
+            });
+        }
+
+        // Función auxiliar para obtener datos del ticket
+        function obtenerDatosTicket() {
+            return new Promise((resolve, reject) => {
+                $.ajax({
+                    url: 'funciones/corte_caja.php',
+                    type: 'POST',
+                    data: {
+                        funcion: 'ObtenerDatosTicket'
+                    },
+                    dataType: 'json',
+                    success: function (response) {
+                        if (response.error) {
+                            reject(response.error);
+                        } else {
+                            resolve(response);
+                        }
+                    },
+                    error: function (xhr, status, error) {
+                        reject('Error de conexión: ' + error);
+                    }
+                });
+            });
         }
 
         // ========== INICIALIZACIÓN ==========

@@ -213,7 +213,7 @@ function generarTicket()
                     <p style='margin: 2px 0; font-size: 12px;'>Tel: (555) 123-4567</p>
                     <p style='margin: 2px 0; font-size: 12px;'>RFC: PIZ123456789</p>
                     <hr style='margin: 8px 0; border-top: 2px dashed #000;'>
-                    <p style='margin: 0; font-size: 15px;'> Ticket reimpreso</p>
+                    <p style='margin: 0; font-size: 15px;'> Ticket Reimpreso</p>
                 </div>
                     
                 <div class='ticket-info mb-3' style='font-size: 12px;'>

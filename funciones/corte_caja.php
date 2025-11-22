@@ -3,20 +3,14 @@ require_once '../conexion.php';
 
 header('Content-Type: application/json');
 
-// Función temporal para verificar permisos - permitir a todos temporalmente
-function verificarPermisoCorte($id_usuario)
-{
-    return true;
-}
-
-// Función para obtener caja abierta
+// Función para obtener caja abierta (MODIFICADA PARA POSTGRES)
 function obtenerCajaAbierta($id_usuario)
 {
     global $conexion;
 
     try {
         $sql = "SELECT * FROM corte_caja 
-                WHERE id_usuario = ? AND estado = 'abierta' 
+                WHERE id_usuario = ? AND estado = 'ABIERTO' 
                 ORDER BY fecha_apertura DESC LIMIT 1";
 
         $stmt = $conexion->prepare($sql);
@@ -29,7 +23,7 @@ function obtenerCajaAbierta($id_usuario)
     }
 }
 
-// Función para abrir caja
+// Función para abrir caja usando el procedimiento almacenado
 function abrirCaja($id_usuario, $monto_inicial, $observaciones = '')
 {
     global $conexion;
@@ -41,17 +35,13 @@ function abrirCaja($id_usuario, $monto_inicial, $observaciones = '')
             return ['success' => false, 'message' => 'Ya existe una caja abierta'];
         }
 
-        $sql = "INSERT INTO corte_caja (id_usuario, fecha_apertura, monto_inicial, observaciones, estado) 
-                VALUES (?, NOW(), ?, ?, 'abierta')";
-
+        // Llamar al procedimiento almacenado
+        $sql = "CALL sp_abrir_caja(?, ?, ?)";
         $stmt = $conexion->prepare($sql);
         $stmt->execute([$id_usuario, $monto_inicial, $observaciones]);
 
-        if ($stmt->rowCount() > 0) {
-            return ['success' => true, 'message' => 'Caja abierta correctamente'];
-        } else {
-            return ['success' => false, 'message' => 'Error al abrir la caja'];
-        }
+        return ['success' => true, 'message' => 'Caja abierta correctamente'];
+
     } catch (Exception $e) {
         error_log("Error en abrirCaja: " . $e->getMessage());
         return ['success' => false, 'message' => 'Error en base de datos: ' . $e->getMessage()];
@@ -171,15 +161,41 @@ function obtenerResumenCierre($id_usuario)
     }
 }
 
+// Función para cerrar caja usando el procedimiento almacenado
+function cerrarCaja($id_usuario, $efectivo_final, $observaciones = '')
+{
+    global $conexion;
+
+    try {
+        // Obtener la caja abierta
+        $caja_abierta = obtenerCajaAbierta($id_usuario);
+        if (!$caja_abierta) {
+            return ['success' => false, 'message' => 'No hay caja abierta para cerrar'];
+        }
+
+        $id_corte = $caja_abierta['id_corte'];
+
+        // Llamar al procedimiento almacenado
+        $sql = "CALL sp_cerrar_caja(?, ?, ?, ?)";
+        $stmt = $conexion->prepare($sql);
+        $stmt->execute([$id_corte, $id_usuario, $efectivo_final, $observaciones]);
+
+        return ['success' => true, 'message' => 'Caja cerrada correctamente'];
+
+    } catch (Exception $e) {
+        error_log("Error en cerrarCaja: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Error en base de datos: ' . $e->getMessage()];
+    }
+}
+
 // Función para obtener datos para el ticket
 // Función para obtener datos para el ticket
-// Función corregida para obtener datos para el ticket
 function obtenerDatosTicket($id_usuario)
 {
     global $conexion;
 
     try {
-        // Obtener el último cierre de caja de la tabla corte_caja
+        // Obtener el último cierre de caja
         $sql_caja = "SELECT * FROM corte_caja 
                     WHERE id_usuario = ? 
                     ORDER BY fecha_cierre DESC 
@@ -202,7 +218,6 @@ function obtenerDatosTicket($id_usuario)
         $fecha_apertura = $caja['fecha_apertura'];
         $fecha_cierre = $caja['fecha_cierre'];
 
-        // CORREGIR: usar id_mesero en lugar de idmesero
         $sql_meseros = "SELECT 
                         p.id_mesero,
                         COALESCE(p.nombre_mesero, 'Sin mesero') as nombre_mesero,
@@ -247,59 +262,6 @@ function obtenerDatosTicket($id_usuario)
     }
 }
 
-// Función para cerrar caja
-function cerrarCaja($id_usuario, $efectivo_final, $observaciones = '')
-{
-    global $conexion;
-
-    try {
-        // Obtener la caja abierta
-        $caja_abierta = obtenerCajaAbierta($id_usuario);
-        if (!$caja_abierta) {
-            return ['success' => false, 'message' => 'No hay caja abierta para cerrar'];
-        }
-
-        $id_corte = $caja_abierta['id_corte'];
-
-        // Obtener resumen de ventas
-        $resumen_ventas = obtenerResumenCierre($id_usuario);
-
-        // Si hay error al obtener resumen, usar valores por defecto
-        if (isset($resumen_ventas['error'])) {
-            $ventas_totales = 0;
-        } else {
-            $ventas_totales = $resumen_ventas['ventas_totales'];
-        }
-
-        $sql = "UPDATE corte_caja 
-                SET fecha_cierre = NOW(),
-                    monto_final = ?,
-                    ventas_totales = ?,
-                    observaciones = ?,
-                    estado = 'cerrada'
-                WHERE id_corte = ?";
-
-        $stmt = $conexion->prepare($sql);
-        $stmt->execute([
-            $efectivo_final,
-            $ventas_totales,
-            $observaciones,
-            $id_corte
-        ]);
-
-        if ($stmt->rowCount() > 0) {
-            return ['success' => true, 'message' => 'Caja cerrada correctamente'];
-        } else {
-            return ['success' => false, 'message' => 'Error al cerrar la caja'];
-        }
-    } catch (Exception $e) {
-        error_log("Error en cerrarCaja: " . $e->getMessage());
-        return ['success' => false, 'message' => 'Error en base de datos: ' . $e->getMessage()];
-    }
-}
-
-
-
 // Función para obtener historial de cortes
 function obtenerHistorial($id_usuario, $limite = 50)
 {
@@ -328,7 +290,6 @@ function obtenerHistorial($id_usuario, $limite = 50)
 }
 
 // Procesar solicitudes AJAX
-// Procesar solicitudes AJAX
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (session_status() === PHP_SESSION_NONE) {
@@ -343,14 +304,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id_usuario = $_SESSION['id_usuario'];
         $funcion = $_POST['funcion'] ?? '';
 
-        // AGREGAR 'ObtenerDatosTicket' A LA LISTA DE FUNCIONES PERMITIDAS
         $funciones_permitidas = [
             'ObtenerResumenVentas',
             'ObtenerResumenCierre',
             'AbrirCaja',
             'CerrarCaja',
             'ObtenerHistorial',
-            'ObtenerDatosTicket'  // <- AÑADIR ESTA LÍNEA
+            'ObtenerDatosTicket'
         ];
 
         if (!in_array($funcion, $funciones_permitidas)) {
@@ -383,7 +343,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $resultado = obtenerHistorial($id_usuario);
                 break;
 
-            case 'ObtenerDatosTicket':  // <- AÑADIR ESTE CASO
+            case 'ObtenerDatosTicket':
                 $resultado = obtenerDatosTicket($id_usuario);
                 break;
         }
