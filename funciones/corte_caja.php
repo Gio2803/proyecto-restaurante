@@ -175,7 +175,7 @@ function cerrarCaja($id_usuario, $efectivo_final, $observaciones = '')
 
         $id_corte = $caja_abierta['id_corte'];
 
-        // Llamar al procedimiento almacenado
+        // SOLO llamar al procedimiento almacenado - ÉL ya calcula la diferencia correctamente
         $sql = "CALL sp_cerrar_caja(?, ?, ?, ?)";
         $stmt = $conexion->prepare($sql);
         $stmt->execute([$id_corte, $id_usuario, $efectivo_final, $observaciones]);
@@ -188,7 +188,6 @@ function cerrarCaja($id_usuario, $efectivo_final, $observaciones = '')
     }
 }
 
-// Función para obtener datos para el ticket
 // Función para obtener datos para el ticket
 function obtenerDatosTicket($id_usuario)
 {
@@ -252,6 +251,7 @@ function obtenerDatosTicket($id_usuario)
             'fecha_cierre' => date('d/m/Y H:i', strtotime($caja['fecha_cierre'])),
             'monto_inicial' => $caja['monto_inicial'],
             'ventas_totales' => $result_total['total'],
+            'diferencia' => $caja['diferencia'] ?? 0,
             'meseros' => $meseros,
             'nombre_usuario' => $usuario['nombre'],
             'observaciones' => $caja['observaciones']
@@ -272,7 +272,9 @@ function obtenerHistorial($id_usuario, $limite = 50)
                 cc.*,
                 u.nombre as nombre_usuario,
                 TO_CHAR(cc.fecha_apertura, 'DD/MM/YYYY HH24:MI') as fecha_apertura_formatted,
-                TO_CHAR(cc.fecha_cierre, 'DD/MM/YYYY HH24:MI') as fecha_cierre_formatted
+                TO_CHAR(cc.fecha_cierre, 'DD/MM/YYYY HH24:MI') as fecha_cierre_formatted,
+                (cc.monto_inicial + cc.ventas_totales) as total_esperado,
+                cc.diferencia
                 FROM corte_caja cc
                 JOIN usuarios u ON cc.id_usuario = u.id_usuario
                 WHERE cc.id_usuario = ?

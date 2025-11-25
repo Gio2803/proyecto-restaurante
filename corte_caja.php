@@ -1104,29 +1104,30 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
         // Mostrar historial
         function mostrarHistorial(cortes) {
             let html = `
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Fecha Apertura</th>
-                                <th>Fecha Cierre</th>
-                                <th>Usuario</th>
-                                <th>Monto Inicial</th>
-                                <th>Ventas</th>
-                                <th>Efectivo Final</th>
-                                <th>Diferencia</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-            `;
+        <div class="table-responsive">
+            <table class="table table-hover table-striped">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha Apertura</th>
+                        <th>Fecha Cierre</th>
+                        <th>Usuario</th>
+                        <th>Monto Inicial</th>
+                        <th>Ventas</th>
+                        <th>Efectivo Final</th>
+                        <th>Diferencia</th>
+                        <th>Estado</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
 
             cortes.forEach(corte => {
                 const montoInicial = parseFloat(corte.monto_inicial || 0);
                 const ventasTotales = parseFloat(corte.ventas_totales || 0);
                 const efectivoFinal = parseFloat(corte.monto_final || 0);
-                const totalEsperado = montoInicial + ventasTotales;
-                const diferencia = efectivoFinal - totalEsperado;
+
+                // Usar la diferencia calculada desde la base de datos
+                const diferencia = parseFloat(corte.diferencia || 0);
 
                 // Determinar clase para la diferencia
                 let diferenciaClass = 'text-success';
@@ -1137,21 +1138,21 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
                 }
 
                 html += `
-                    <tr>
-                        <td>${corte.fecha_apertura_formatted || 'N/A'}</td>
-                        <td>${corte.fecha_cierre_formatted || 'N/A'}</td>
-                        <td>${corte.nombre_usuario || 'N/A'}</td>
-                        <td>$${montoInicial.toFixed(2)}</td>
-                        <td>$${ventasTotales.toFixed(2)}</td>
-                        <td>$${efectivoFinal.toFixed(2)}</td>
-                        <td class="${diferenciaClass} fw-bold">$${diferencia.toFixed(2)}</td>
-                        <td>
-                            <span class="badge-estado ${corte.estado === 'ABIERTO' ? 'badge-abierta' : 'badge-cerrada'}">
-                                ${corte.estado || 'CERRADO'}
-                            </span>
-                        </td>
-                    </tr>
-                `;
+            <tr>
+                <td>${corte.fecha_apertura_formatted || 'N/A'}</td>
+                <td>${corte.fecha_cierre_formatted || 'N/A'}</td>
+                <td>${corte.nombre_usuario || 'N/A'}</td>
+                <td>$${montoInicial.toFixed(2)}</td>
+                <td>$${ventasTotales.toFixed(2)}</td>
+                <td>$${efectivoFinal.toFixed(2)}</td>
+                <td class="${diferenciaClass} fw-bold">$${diferencia.toFixed(2)}</td>
+                <td>
+                    <span class="badge-estado ${corte.estado === 'ABIERTO' ? 'badge-abierta' : 'badge-cerrada'}">
+                        ${corte.estado || 'CERRADO'}
+                    </span>
+                </td>
+            </tr>
+        `;
             });
 
             html += `</tbody></table></div>`;
@@ -1174,8 +1175,7 @@ $caja_abierta = obtenerCajaAbierta($_SESSION['id_usuario']);
             const montoInicial = parseFloat(ticketData.monto_inicial || 0).toFixed(2);
             const ventasTotales = parseFloat(ticketData.ventas_totales || 0).toFixed(2);
             const totalEsperado = (parseFloat(ticketData.monto_inicial || 0) + parseFloat(ticketData.ventas_totales || 0)).toFixed(2);
-            const diferencia = (parseFloat(efectivoFinal) - parseFloat(totalEsperado)).toFixed(2);
-
+            const diferencia = parseFloat(ticketData.diferencia || 0).toFixed(2);
             let ticketContent = `
 <!DOCTYPE html>
 <html>

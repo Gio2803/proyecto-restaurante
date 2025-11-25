@@ -516,15 +516,46 @@ require_once 'conexion.php';
             .pedidos-grid {
                 grid-template-columns: 1fr;
             }
-            
+
             .pedido-card {
                 min-height: auto;
             }
-            
+
             .header-actions {
                 flex-direction: column;
                 gap: 15px;
             }
+        }
+
+        /* Estilos para notas en barra (igual que en cocina) */
+        .nota-producto-cocina {
+            background: #fff3cd;
+            border-left: 3px solid #ffc107;
+            padding: 4px 8px;
+            margin-top: 3px;
+            border-radius: 3px;
+            font-size: 0.75em;
+            color: #856404;
+        }
+
+        .nota-producto-cocina strong {
+            color: #856404;
+        }
+
+        /* Destacar productos con notas */
+        .producto-item.con-nota {
+            background: #fffdf6;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            margin-bottom: 5px;
+            padding: 8px;
+        }
+
+        /* Indicador visual para productos con notas */
+        .indicador-nota {
+            color: #e67e22;
+            margin-right: 5px;
+            font-size: 0.9em;
         }
     </style>
 </head>
@@ -536,7 +567,7 @@ require_once 'conexion.php';
     </button>
 
     <?php include 'menu.php'; ?>
-    
+
     <!-- Contenido principal -->
     <div class="main-content" id="mainContent">
         <div class="container container-custom">
@@ -546,7 +577,7 @@ require_once 'conexion.php';
 
             <div class="header-actions">
                 <div>
-                    
+
                 </div>
                 <div class="d-none d-md-block">
                     <div class="d-flex gap-2">
@@ -792,49 +823,76 @@ require_once 'conexion.php';
         }
 
         // Generar lista de productos para barra
+        // Generar lista de productos para barra (VERSIÓN MEJORADA CON NOTAS)
         function generarListaProductosBarra(productos, idPedido) {
             let html = '';
 
             productos.forEach((producto, index) => {
                 const estadoProducto = producto.estado_producto || 'pendiente';
+                const tieneNota = producto.nota && producto.nota.trim() !== '';
                 let btnEstado = '';
+                let notaHTML = '';
+
+                // Mostrar nota si existe (mismo formato que cocina)
+                if (tieneNota) {
+                    notaHTML = `
+                <div class="nota-producto-cocina" style="background: linear-gradient(135deg, #fff3cd, #ffeaa7); border: 1px solid #ffc107; padding: 6px 10px; margin-top: 5px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <div style="display: flex; align-items: flex-start; gap: 8px;">
+                        <i class="bi bi-exclamation-triangle-fill" style="color: #e67e22; font-size: 1.1em;"></i>
+                        <div style="flex: 1;">
+                            <strong style="color: #856404; font-size: 0.85em;">NOTA ESPECIAL:</strong>
+                            <div style="color: #856404; font-size: 0.8em; margin-top: 2px;">${producto.nota}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+                }
+
+                // Determinar clase CSS según si tiene nota
+                const claseProducto = tieneNota ? 'producto-item con-nota' : 'producto-item';
 
                 if (estadoProducto === 'pendiente') {
                     btnEstado = `
-                        <button class="btn-accion btn-preparar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'en_preparacion')">
-                            <i class="bi bi-play-circle"></i> Preparar.
-                        </button>
-                    `;
+                <button class="btn-accion btn-preparar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'en_preparacion')">
+                    <i class="bi bi-play-circle"></i> Preparar
+                </button>
+            `;
                 } else if (estadoProducto === 'en_preparacion') {
                     btnEstado = `
-                        <button class="btn-accion btn-terminar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'terminado')">
-                            <i class="bi bi-check-circle"></i> Listo
-                        </button>
-                    `;
+                <button class="btn-accion btn-terminar" onclick="cambiarEstadoProducto(${idPedido}, ${producto.id_detalle}, 'terminado')">
+                    <i class="bi bi-check-circle"></i> Listo
+                </button>
+            `;
                 } else if (estadoProducto === 'terminado') {
                     btnEstado = `
-                        <span class="estado-terminado">
-                            <i class="bi bi-check-all"></i> TERMINADO
-                        </span>
-                    `;
+                <span class="estado-terminado">
+                    <i class="bi bi-check-all"></i> TERMINADO
+                </span>
+            `;
                 }
 
+                // Icono de nota en el nombre del producto
+                const iconoNota = tieneNota ? '<i class="bi bi-chat-left-text indicador-nota"></i>' : '';
+
                 html += `
-                    <div class="producto-item">
-                        <div class="producto-info">
-                            <div class="producto-nombre">${producto.nombre_platillo}</div>
-                            <div class="producto-cantidad">
-                                Cant: ${producto.cantidad} • 
-                                <span class="estado-${estadoProducto}">
-                                    ${estadoProducto.replace('_', ' ').toUpperCase()}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="acciones-producto">
-                            ${btnEstado}
-                        </div>
+            <div class="${claseProducto}">
+                <div class="producto-info">
+                    <div class="producto-nombre">
+                        ${iconoNota}${producto.nombre_platillo}
                     </div>
-                `;
+                    <div class="producto-cantidad">
+                        Cant: ${producto.cantidad} • 
+                        <span class="estado-${estadoProducto}">
+                            ${estadoProducto.replace('_', ' ').toUpperCase()}
+                        </span>
+                    </div>
+                    ${notaHTML}
+                </div>
+                <div class="acciones-producto">
+                    ${btnEstado}
+                </div>
+            </div>
+        `;
             });
 
             return html;

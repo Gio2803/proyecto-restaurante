@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
 
             $pedidos = [];
             while ($pedido = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                // Obtener detalles del pedido solo para barra
+                // Obtener detalles del pedido solo para barra (INCLUYENDO NOTAS)
                 $sqlDetalles = "
                     SELECT 
                         dp.id_detalle,
@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
                         dp.cantidad,
                         dp.precio_unitario,
                         dp.subtotal,
+                        dp.nota,  -- INCLUIR EL CAMPO NOTA
                         COALESCE(dp.estado, 'pendiente') as estado_producto,
                         COALESCE(c.nombre, 'Sin Categoría') as categoria_nombre
                     FROM detalles_pedido dp
@@ -129,7 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             $conexion->beginTransaction();
 
             // Si el estado es 'finalizada', actualizar todos los productos de barra a 'terminado'
-            // CORRECCIÓN: Usar subconsulta en lugar de JOIN en UPDATE
             if ($nuevo_estado == 'finalizada') {
                 $stmtProductos = $conexion->prepare("
                     UPDATE detalles_pedido 

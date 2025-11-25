@@ -567,12 +567,13 @@ try {
             margin-right: 8px;
         }
 
-        #btnAgregarMas {
-            display: block !important;
-        }
-
-        #btnEnviarAdicionales {
-            display: block !important;
+        #btnAgregarMas,
+        #btnEnviarAdicionales,
+        #btnEnviarOrden {
+            display: none;
+            /* Por defecto ocultos */
+            width: 100%;
+            margin-bottom: 10px;
         }
 
         .ticket-popup .swal2-popup {
@@ -1454,7 +1455,6 @@ try {
             document.getElementById('mesas-disponibles').textContent = totalMesas - ocupadas;
             document.getElementById('total-mesas').textContent = totalMesas;
         }
-
         // ========== FUNCIONES DE CLIENTES ==========
 
         // Función para cargar meseros por mesa
@@ -1893,7 +1893,6 @@ try {
                 }
                 infoClienteElement.style.display = 'block';
             } else {
-                // Si no hay cliente, ocultar el elemento
                 if (infoClienteElement) {
                     infoClienteElement.style.display = 'none';
                 }
@@ -1906,19 +1905,19 @@ try {
             }
 
             if (mesaActual && !mesaActual.classList.contains("ocupada") && !mesaActual.classList.contains("con-pedido")) {
-                // Si es una mesa nueva, limpiar todo
+                // Si es una mesa nueva, limpiar todo y mostrar solo los dos botones principales
                 productosPendientesEnvio = [];
                 pedidos = [];
                 pedidoActualId = null;
                 actualizarListaPedidos();
                 limpiarPedidosAnteriores(idMesaActual);
 
-                // Mostrar botones para nuevo pedido
-                document.getElementById('btnEnviarAdicionales').style.display = 'none';
+                // Mostrar solo los dos botones principales (NUEVA MESA)
+                document.getElementById('btnEnviarAdicionales').style.display = 'none'; // ← OCULTAR
                 document.getElementById('btnEnviarOrden').style.display = 'block';
                 document.getElementById('btnAgregarMas').style.display = 'block';
             } else {
-                // Si es una mesa existente, cargar el pedido
+                // Si es una mesa existente, cargar el pedido (mostrará los botones correctos en verificarPedidoActivo)
                 verificarPedidoActivo(idMesaActual);
             }
 
@@ -2050,32 +2049,23 @@ try {
 
                         // MOSTRAR BOTONES DEPENDIENDO DEL ESTADO
                         if (data.estado === 'finalizada') {
-                            // Si el pedido está finalizado, mostrar solo botón para agregar más
+                            // Si el pedido está finalizado, mostrar "Enviar Adicionales" y "Agregar Más"
                             document.getElementById('btnEnviarAdicionales').style.display = 'block';
                             document.getElementById('btnEnviarOrden').style.display = 'none';
                             document.getElementById('btnAgregarMas').style.display = 'block';
-
-                            // Mostrar mensaje de que el pedido está finalizado
-                            Swal.fire({
-                                title: 'Pedido Finalizado',
-                                html: `El pedido de la <strong>Mesa ${numeroMesaActual}</strong> está marcado como finalizado.<br>Puede agregar productos adicionales si es necesario.`,
-                                icon: 'info',
-                                confirmButtonText: 'Entendido',
-                                confirmButtonColor: '#67C090'
-                            });
                         } else {
-                            // Si el pedido está activo, mostrar botones normales
-                            document.getElementById('btnEnviarAdicionales').style.display = 'block';
+                            // Si el pedido está activo, mostrar SOLO "Enviar Adicionales" y "Agregar Más"
+                            document.getElementById('btnEnviarAdicionales').style.display = 'block'; // ← MOSTRAR
                             document.getElementById('btnEnviarOrden').style.display = 'none';
                             document.getElementById('btnAgregarMas').style.display = 'block';
                         }
                     } else {
-                        // No hay pedido activo
+                        // No hay pedido activo - MOSTRAR SOLO LOS DOS BOTONES PRINCIPALES
                         productosPendientesEnvio = [];
                         pedidos = [];
                         pedidoActualId = null;
                         actualizarListaPedidos();
-                        document.getElementById('btnEnviarAdicionales').style.display = 'none';
+                        document.getElementById('btnEnviarAdicionales').style.display = 'none'; // ← OCULTAR
                         document.getElementById('btnEnviarOrden').style.display = 'block';
                         document.getElementById('btnAgregarMas').style.display = 'block';
                     }
@@ -2117,19 +2107,17 @@ try {
             switch (estado) {
                 case 'recibida':
                 case 'en_preparacion':
-                    // Pedido activo - mostrar botones normales
-                    btnEnviarAdicionales.style.display = 'block';
+                    // Pedido activo - mostrar "Enviar Adicionales" y "Agregar Más"
+                    btnEnviarAdicionales.style.display = 'block'; // ← MOSTRAR
                     btnEnviarOrden.style.display = 'none';
                     btnAgregarMas.style.display = 'block';
                     break;
 
                 case 'finalizada':
-                    // Pedido finalizado - permitir agregar más productos
+                    // Pedido finalizado - mostrar "Enviar Adicionales" y "Agregar Más"
                     btnEnviarAdicionales.style.display = 'block';
                     btnEnviarOrden.style.display = 'none';
                     btnAgregarMas.style.display = 'block';
-
-                    // Mostrar indicador de pedido finalizado
                     mostrarIndicadorFinalizado();
                     break;
 
@@ -2142,12 +2130,13 @@ try {
                     break;
 
                 default:
-                    // Estado desconocido - mostrar botones por defecto
-                    btnEnviarAdicionales.style.display = 'block';
-                    btnEnviarOrden.style.display = 'none';
+                    // Estado desconocido - mostrar botones por defecto (solo los dos principales)
+                    btnEnviarAdicionales.style.display = 'none'; // ← OCULTAR
+                    btnEnviarOrden.style.display = 'block';
                     btnAgregarMas.style.display = 'block';
             }
         }
+
         function mostrarIndicadorFinalizado() {
             const pedidosContainer = document.getElementById('pedidosContainer');
             const existingIndicator = document.getElementById('indicadorFinalizado');
@@ -2410,6 +2399,9 @@ try {
             // Asegurarse de que las categorías se muestren
             document.getElementById('categoriasMenu').style.display = 'grid';
             document.getElementById('productosContainer').style.display = 'none';
+
+            // Mantener la misma visibilidad de botones que antes
+            // No cambiar la visibilidad aquí
         }
 
         function mostrarListaPedidos() {
@@ -2480,12 +2472,18 @@ try {
                         // LIMPIAR LOS PRODUCTOS PENDIENTES DESPUÉS DE ENVIAR
                         productosPendientesEnvio = [];
 
+                        // ACTUALIZAR EL ESTADO VISUAL DE LA MESA INMEDIATAMENTE
                         if (mesaActual) {
+                            // Cambiar a estado "con-pedido" (naranja)
+                            mesaActual.classList.remove('ocupada');
                             mesaActual.classList.add('con-pedido');
+
+                            // Actualizar también en los datos
                             const mesaIndex = mesasData.findIndex(m => m.id_mesa === idMesaActual);
                             if (mesaIndex !== -1) {
-                                mesasData[mesaIndex].estado = 'ocupada';
+                                mesasData[mesaIndex].estado = 'con-pedido';
                             }
+
                             actualizarEstadisticas();
                         }
 
@@ -2498,6 +2496,9 @@ try {
                             confirmButtonColor: '#67C090'
                         }).then(() => {
                             cerrarModalMenu();
+
+                            // FORZAR ACTUALIZACIÓN VISUAL DE LA MESA
+                            actualizarVisualMesa(numeroMesaActual, 'con-pedido');
                         });
                     } else {
                         Swal.fire('Error', data.message, 'error');
@@ -2508,6 +2509,32 @@ try {
                     Swal.fire('Error', 'Error al enviar la orden', 'error');
                 }
             });
+        }
+
+        // FUNCIÓN NUEVA PARA ACTUALIZAR VISUALMENTE LA MESA
+        function actualizarVisualMesa(numeroMesa, estado) {
+            const mesaElement = document.querySelector(`.mesa[data-numero="${numeroMesa}"]`);
+            if (mesaElement) {
+                // Limpiar clases de estado anteriores
+                mesaElement.classList.remove('ocupada', 'con-pedido');
+
+                // Aplicar nuevo estado
+                if (estado === 'ocupada') {
+                    mesaElement.classList.add('ocupada');
+                } else if (estado === 'con-pedido') {
+                    mesaElement.classList.add('con-pedido');
+                }
+                // Si es 'disponible', no se agrega ninguna clase
+
+                console.log(`✅ Mesa ${numeroMesa} actualizada visualmente a estado: ${estado}`);
+            }
+
+            // También actualizar en los datos
+            const mesaIndex = mesasData.findIndex(m => m.numero_mesa == numeroMesa);
+            if (mesaIndex !== -1) {
+                mesasData[mesaIndex].estado = estado;
+                actualizarEstadisticas();
+            }
         }
 
         function cargarPedidosActivos() {
