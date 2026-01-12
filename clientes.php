@@ -473,7 +473,7 @@ try {
         <i class="bi bi-list"></i>
     </button>
 
-    
+
     <?php include 'menu.php'; ?>
 
     <!-- Contenido principal -->
@@ -614,12 +614,105 @@ try {
         });
 
         // ========== FUNCIONES DE CLIENTES ==========
+        // ========== FUNCIONES DE CLIENTES ==========
         $(document).ready(function () {
             // Variable para la DataTable
             let dataTable;
             // Variable para almacenar el modo actual (nuevo/editar) y el ID
             let currentMode = 'new';
             let currentId = null;
+
+            // Función para validar y formatear teléfono en tiempo real
+            function validarTelefonoInput(input) {
+                // Remover cualquier carácter que no sea número
+                let value = input.value.replace(/[^0-9]/g, '');
+
+                // Limitar a 10 dígitos (ajustable según necesidad)
+                if (value.length > 10) {
+                    value = value.substring(0, 10);
+                }
+
+                // Actualizar el valor del input
+                input.value = value;
+            }
+
+            // Función para validar teléfono completo antes de enviar
+            function validarTelefonoCompleto(telefono) {
+                // Validar que tenga al menos 10 dígitos (ajustable según tu país)
+                if (telefono.length < 10) {
+                    return {
+                        valido: false,
+                        mensaje: "El teléfono debe tener al menos 10 dígitos"
+                    };
+                }
+
+                // Validar que solo contenga números
+                if (!/^\d+$/.test(telefono)) {
+                    return {
+                        valido: false,
+                        mensaje: "El teléfono debe contener solo números"
+                    };
+                }
+
+                return {
+                    valido: true,
+                    mensaje: ""
+                };
+            }
+
+            // Evento para validar teléfono en tiempo real
+            $(document).on('input', '#telefono', function () {
+                validarTelefonoInput(this);
+            });
+
+            // Evento para evitar pegar texto no numérico
+            $(document).on('paste', '#telefono', function (e) {
+                // Obtener el texto pegado
+                let pastedText = e.originalEvent.clipboardData.getData('text');
+
+                // Validar que solo contenga números
+                if (!/^\d+$/.test(pastedText)) {
+                    e.preventDefault();
+                    Swal.fire('Error', 'Solo puedes pegar números', 'warning');
+                    return false;
+                }
+            });
+
+            // Evento para evitar arrastrar texto no numérico
+            $(document).on('drop', '#telefono', function (e) {
+                e.preventDefault();
+                return false;
+            });
+
+            // Evento para validar teclas presionadas (solo números y teclas de control)
+            $(document).on('keydown', '#telefono', function (e) {
+                // Permitir teclas de control: backspace, delete, tab, escape, enter
+                let teclasPermitidas = [8, 9, 13, 27, 46];
+
+                // Permitir flechas: izquierda, arriba, derecha, abajo
+                teclasPermitidas = teclasPermitidas.concat([37, 38, 39, 40]);
+
+                // Permitir teclas especiales: home, end
+                teclasPermitidas = teclasPermitidas.concat([36, 35]);
+
+                // Si es tecla permitida, permitir
+                if (teclasPermitidas.indexOf(e.keyCode) !== -1) {
+                    return;
+                }
+
+                // Si es Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X, permitir
+                if ((e.ctrlKey === true) && (e.keyCode === 65 || e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88)) {
+                    return;
+                }
+
+                // Si es un número del teclado principal o numérico, permitir
+                if ((e.keyCode >= 48 && e.keyCode <= 57) || (e.keyCode >= 96 && e.keyCode <= 105)) {
+                    return;
+                }
+
+                // Para cualquier otra tecla, prevenir
+                e.preventDefault();
+            });
 
             // Inicializar la tabla
             function initTable() {
@@ -699,6 +792,11 @@ try {
                 $('#clienteModalLabel').text('Nuevo Cliente');
                 mostrarFormulario();
                 $('#clienteModal').modal('show');
+
+                // Limpiar y enfocar el campo de teléfono
+                setTimeout(function () {
+                    $('#telefono').val('').focus();
+                }, 500);
             });
 
             // Delegación de eventos para los botones de editar y eliminar
@@ -724,6 +822,11 @@ try {
                 }, function (response) {
                     $('#modal-body').html(response);
                     $('#clienteModal').modal('show');
+
+                    // Aplicar validación al campo de teléfono después de cargar
+                    setTimeout(function () {
+                        validarTelefonoInput(document.getElementById('telefono'));
+                    }, 100);
                 }).fail(function () {
                     Swal.fire("Error", "No se pudo cargar el formulario de edición", "error");
                 });
@@ -752,9 +855,11 @@ try {
                     return;
                 }
 
-                // Validar que el teléfono solo contenga números
-                if (!/^\d+$/.test(telefono)) {
-                    Swal.fire('Error', 'El teléfono debe contener solo números', 'error');
+                // Validar teléfono
+                const validacionTelefono = validarTelefonoCompleto(telefono);
+                if (!validacionTelefono.valido) {
+                    Swal.fire('Error', validacionTelefono.mensaje, 'error');
+                    $('#telefono').focus();
                     return;
                 }
 

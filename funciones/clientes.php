@@ -37,13 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             exit;
         }
 
-        // Verificar existencia por nombre y apellidos
-        $stmt = $conexion->prepare("SELECT id_cliente FROM clientes WHERE nombre = :nombre AND apellidos = :apellidos");
-        $stmt->execute([':nombre' => $nombre, ':apellidos' => $apellidos]);
-        if ($stmt->rowCount() > 0) {
-            echo "Ya existe un cliente con ese nombre y apellidos";
-            exit;
-        }
+        // SE PERMITEN CLIENTES CON EL MISMO NOMBRE Y APELLIDOS
+        // No se realiza validación de duplicados
 
         $stmt = $conexion->prepare("INSERT INTO clientes (nombre, apellidos, telefono) VALUES (:nombre, :apellidos, :telefono)");
         $ok = $stmt->execute([
@@ -69,13 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['funcion'])) {
             exit;
         }
 
-        // Verificar si ya existe otro cliente con el mismo nombre y apellidos
-        $stmt = $conexion->prepare("SELECT id_cliente FROM clientes WHERE nombre = :nombre AND apellidos = :apellidos AND id_cliente != :id");
-        $stmt->execute([':nombre' => $nombre, ':apellidos' => $apellidos, ':id' => $id]);
-        if ($stmt->rowCount() > 0) {
-            echo "Ya existe otro cliente con ese nombre y apellidos";
-            exit;
-        }
+        // SE PERMITEN CLIENTES CON EL MISMO NOMBRE Y APELLIDOS
+        // No se realiza validación de duplicados
 
         $stmt = $conexion->prepare("UPDATE clientes SET nombre=:nombre, apellidos=:apellidos, telefono=:telefono WHERE id_cliente=:id");
         $ok = $stmt->execute([

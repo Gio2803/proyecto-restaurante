@@ -3,7 +3,7 @@ require_once '../conexion.php';
 
 header('Content-Type: application/json');
 
-// Función para obtener caja abierta (MODIFICADA PARA POSTGRES)
+// Función para obtener caja abierta 
 function obtenerCajaAbierta($id_usuario)
 {
     global $conexion;
